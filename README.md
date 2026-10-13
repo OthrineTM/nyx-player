@@ -2,6 +2,8 @@
 
 A KDE Plasma 6 panel music player with a spinning vinyl cover and an [Easy Effects](https://github.com/wwmm/easyeffects) preset switcher.
 
+![Nyx Player popup with a song playing and the Easy Effects presets](screenshots/popup.png)
+
 All colors come from your active Plasma theme, so it matches whatever theme you use.
 
 ## Features
