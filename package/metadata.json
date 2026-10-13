@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "io.github.othrinetm.nyxplayer",
+        "Name": "Nyx Player",
+        "Description": "Panel music player with a spinning cover and Easy Effects preset switcher",
+        "Icon": "media-playback-start",
+        "Category": "Multimedia",
+        "Version": "1.0",
+        "License": "GPL-3.0-or-later",
+        "Authors": [{ "Name": "OthrineTM" }],
+        "Website": "https://github.com/OthrineTM/nyx-player"
+    }
+}
