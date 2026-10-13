@@ -26,9 +26,29 @@ PlasmoidItem {
 
     // ---- player -------------------------------------------------------
     Mpris.Mpris2Model { id: mpris }
-    readonly property var player: mpris.currentPlayer
+    Instantiator {
+        id: allPlayers
+        model: mpris
+        delegate: QtObject { readonly property var container: model.container }
+    }
     // Chromium keeps a dead MPRIS entry after the tab closes; require metadata.
-    readonly property bool ready: !!player && !!(player.track || player.artist)
+    function hasMeta(p) { return !!p && !!(p.track || p.artist) }
+    // Plasma's current player can be an idle app (e.g. an Electron app with no media),
+    // so prefer whichever player is actually playing, then any player with a track.
+    readonly property var player: {
+        var cur = mpris.currentPlayer
+        if (hasMeta(cur) && cur.playbackStatus === Mpris.PlaybackStatus.Playing) return cur
+        var fallback = hasMeta(cur) ? cur : null
+        for (var i = 0; i < allPlayers.count; i++) {
+            var o = allPlayers.objectAt(i)
+            var p = o ? o.container : null
+            if (!hasMeta(p)) continue
+            if (p.playbackStatus === Mpris.PlaybackStatus.Playing) return p
+            if (!fallback) fallback = p
+        }
+        return fallback || cur
+    }
+    readonly property bool ready: hasMeta(player)
     readonly property bool playing: ready && player.playbackStatus === Mpris.PlaybackStatus.Playing
     readonly property string title: ready ? player.track : "Nothing playing"
     readonly property string artist: ready ? player.artist : ""
