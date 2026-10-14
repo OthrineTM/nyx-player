@@ -29,6 +29,10 @@ Works with any player that supports MPRIS: Spotify, browsers, VLC, mpv and other
 
 ## Install
 
+**From the KDE Store:** right-click your panel → **Add or Manage Widgets…** → **Get New Widgets…** → **Download New Plasma Widgets…**, search for **Nyx Player** and click **Install**. Or download it from its [KDE Store page](https://store.kde.org/p/2378511).
+
+**From GitHub:**
+
 ```bash
 git clone https://github.com/OthrineTM/nyx-player.git
 kpackagetool6 --type Plasma/Applet --install nyx-player/package
