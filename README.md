@@ -49,6 +49,11 @@ Then right-click your panel → **Add or Manage Widgets…**, search for **Nyx P
 - Easy Effects presets are read from `~/.local/share/easyeffects/output`. If Easy Effects isn't running, the widget starts it in the background (`--service-mode`).
 - The widget uses Plasma's private MPRIS QML module (`org.kde.plasma.private.mpris`), the same one the built-in Media Player widget uses. A big Plasma update could break it.
 
+## See also
+
+- [Nyx Control](https://github.com/OthrineTM/nyx-control): control center with notifications, clipboard, system gauges and quick toggles
+- [Nyx Clock](https://github.com/OthrineTM/nyx-clock): customizable desktop clock with weekday, date and weather
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
