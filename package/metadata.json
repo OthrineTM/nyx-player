@@ -7,7 +7,7 @@
         "Description": "Panel music player with a spinning cover and Easy Effects preset switcher",
         "Icon": "media-playback-start",
         "Category": "Multimedia",
-        "Version": "1.1",
+        "Version": "1.2",
         "License": "GPL-3.0-or-later",
         "Authors": [{ "Name": "OthrineTM" }],
         "Website": "https://github.com/OthrineTM/nyx-player"

@@ -33,20 +33,26 @@ PlasmoidItem {
     }
     // Chromium keeps a dead MPRIS entry after the tab closes; require metadata.
     function hasMeta(p) { return !!p && !!(p.track || p.artist) }
+    // Players bridged from a phone by KDE Connect rank below local ones.
+    function isRemote(p) { return !!p && String(p.desktopEntry).indexOf("org.kde.kdeconnect") === 0 }
+    function isPlaying(p) { return p.playbackStatus === Mpris.PlaybackStatus.Playing }
     // Plasma's current player can be an idle app (e.g. an Electron app with no media),
-    // so prefer whichever player is actually playing, then any player with a track.
+    // so rank: playing local > playing remote > paused local > paused remote.
     readonly property var player: {
         var cur = mpris.currentPlayer
-        if (hasMeta(cur) && cur.playbackStatus === Mpris.PlaybackStatus.Playing) return cur
-        var fallback = hasMeta(cur) ? cur : null
+        var best = null, bestRank = -1
+        var cands = [cur]
         for (var i = 0; i < allPlayers.count; i++) {
             var o = allPlayers.objectAt(i)
-            var p = o ? o.container : null
-            if (!hasMeta(p)) continue
-            if (p.playbackStatus === Mpris.PlaybackStatus.Playing) return p
-            if (!fallback) fallback = p
+            cands.push(o ? o.container : null)
         }
-        return fallback || cur
+        for (var j = 0; j < cands.length; j++) {
+            var p = cands[j]
+            if (!hasMeta(p)) continue
+            var rank = (isPlaying(p) ? 2 : 0) + (isRemote(p) ? 0 : 1)
+            if (rank > bestRank) { best = p; bestRank = rank }
+        }
+        return best || cur
     }
     readonly property bool ready: hasMeta(player)
     readonly property bool playing: ready && player.playbackStatus === Mpris.PlaybackStatus.Playing
