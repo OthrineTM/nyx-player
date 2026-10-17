@@ -21,6 +21,16 @@ PlasmoidItem {
     readonly property var cfg: Plasmoid.configuration
     readonly property string helper: Qt.resolvedUrl("../code/ee.sh").toString().replace("file://", "")
 
+    Plasmoid.contextualActions: [
+        PlasmaCore.Action {
+            text: "Prefer This Computer's Players"
+            icon.name: "computer"
+            checkable: true
+            checked: root.cfg.preferLocal
+            onTriggered: root.cfg.preferLocal = checked
+        }
+    ]
+
     toolTipMainText: root.title
     toolTipSubText: root.artist
 
@@ -49,7 +59,7 @@ PlasmoidItem {
         for (var j = 0; j < cands.length; j++) {
             var p = cands[j]
             if (!hasMeta(p)) continue
-            var rank = (isPlaying(p) ? 2 : 0) + (isRemote(p) ? 0 : 1)
+            var rank = (isPlaying(p) ? 2 : 0) + (cfg.preferLocal && isRemote(p) ? 0 : 1)
             if (rank > bestRank) { best = p; bestRank = rank }
         }
         return best || cur

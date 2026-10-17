@@ -6,6 +6,8 @@
   <group name="General">
     <!-- preferred Easy Effects preset variant when a preset has -min/-max versions -->
     <entry name="variant" type="String"><default>max</default></entry>
+    <!-- rank this computer's players above phones bridged by KDE Connect -->
+    <entry name="preferLocal" type="Bool"><default>true</default></entry>
     <entry name="compactWidth" type="Int"><default>250</default></entry>
   </group>
 </kcfg>
