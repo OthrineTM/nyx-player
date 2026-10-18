@@ -13,17 +13,19 @@ All colors come from your active Plasma theme, so it matches whatever theme you 
   - spinning vinyl-style cover
   - title, artist, the audio output in use, and the app that's playing
   - seek bar and playback controls
+  - a player switcher: stay on Auto, or pick one player by hand when several are open
 - **Easy Effects section:**
   - every output preset as a button
   - one on/off switch for all effects
   - a button that opens the Easy Effects window
+- **Phone players:** media from your phone through KDE Connect ranks below this computer's players. Turn this off with *Prefer This Computer's Players* in the right-click menu.
 - **Preset intensity:** presets named `name-min` / `name-max` are grouped into one button, with an Intensity toggle between the two
 
 Works with any player that supports MPRIS: Spotify, browsers, VLC, mpv and others.
 
 ## Requirements
 
-- KDE Plasma 6 (tested on 6.7.5)
+- KDE Plasma 6 (tested on 6.8.0)
 - Easy Effects (only for the Easy Effects section, but the popup expects it)
 - WirePlumber (`wpctl`), which most PipeWire setups already have
 

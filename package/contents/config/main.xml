@@ -8,6 +8,8 @@
     <entry name="variant" type="String"><default>max</default></entry>
     <!-- rank this computer's players above phones bridged by KDE Connect -->
     <entry name="preferLocal" type="Bool"><default>true</default></entry>
+    <!-- identity of the player picked by hand in the popup; empty = automatic -->
+    <entry name="pinnedPlayer" type="String"><default></default></entry>
     <entry name="compactWidth" type="Int"><default>250</default></entry>
   </group>
 </kcfg>

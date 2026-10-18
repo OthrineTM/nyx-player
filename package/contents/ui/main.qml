@@ -46,24 +46,38 @@ PlasmoidItem {
     // Players bridged from a phone by KDE Connect rank below local ones.
     function isRemote(p) { return !!p && String(p.desktopEntry).indexOf("org.kde.kdeconnect") === 0 }
     function isPlaying(p) { return p.playbackStatus === Mpris.PlaybackStatus.Playing }
-    // Plasma's current player can be an idle app (e.g. an Electron app with no media),
-    // so rank: playing local > playing remote > paused local > paused remote.
-    readonly property var player: {
-        var cur = mpris.currentPlayer
-        var best = null, bestRank = -1
-        var cands = [cur]
+    // Every player with something loaded, for the switcher in the popup.
+    // KDE Connect can list the same phone app twice; keep one per name, the playing one.
+    readonly property var players: {
+        var out = [], seen = {}
         for (var i = 0; i < allPlayers.count; i++) {
             var o = allPlayers.objectAt(i)
-            cands.push(o ? o.container : null)
-        }
-        for (var j = 0; j < cands.length; j++) {
-            var p = cands[j]
+            var p = o ? o.container : null
             if (!hasMeta(p)) continue
-            var rank = (isPlaying(p) ? 2 : 0) + (cfg.preferLocal && isRemote(p) ? 0 : 1)
+            if (seen[p.identity] === undefined) { seen[p.identity] = out.length; out.push(p) }
+            else if (isPlaying(p) && !isPlaying(out[seen[p.identity]])) out[seen[p.identity]] = p
+        }
+        return out
+    }
+    // A player picked by hand wins while it exists; otherwise choose automatically.
+    readonly property var pinned: {
+        for (var i = 0; i < players.length; i++)
+            if (players[i].identity === cfg.pinnedPlayer) return players[i]
+        return null
+    }
+    // Plasma's current player can be an idle app (e.g. an Electron app with no media),
+    // so rank by local (when preferred), then playing. Spotify Connect makes the phone
+    // play while the local app sits paused, so "local" must outrank "playing".
+    readonly property var autoPlayer: {
+        var best = null, bestRank = -1
+        for (var i = 0; i < players.length; i++) {
+            var p = players[i]
+            var rank = (cfg.preferLocal && isRemote(p) ? 0 : 2) + (isPlaying(p) ? 1 : 0)
             if (rank > bestRank) { best = p; bestRank = rank }
         }
-        return best || cur
+        return best || mpris.currentPlayer
     }
+    readonly property var player: pinned || autoPlayer
     readonly property bool ready: hasMeta(player)
     readonly property bool playing: ready && player.playbackStatus === Mpris.PlaybackStatus.Playing
     readonly property string title: ready ? player.track : "Nothing playing"
@@ -350,6 +364,40 @@ PlasmoidItem {
             anchors.fill: parent
             anchors.margins: Kirigami.Units.largeSpacing
             spacing: Kirigami.Units.largeSpacing
+
+            // --- player switcher ---
+            Flow {
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+                visible: root.players.length > 1 || root.cfg.pinnedPlayer !== ""
+
+                PC3.ToolButton {
+                    text: "Auto"
+                    icon.name: "media-playlist-shuffle"
+                    checkable: true
+                    checked: root.pinned === null
+                    onClicked: root.cfg.pinnedPlayer = ""
+                    PC3.ToolTip.text: "Follow whichever player fits best"
+                    PC3.ToolTip.visible: hovered
+                    PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                }
+                Repeater {
+                    model: root.players
+                    PC3.ToolButton {
+                        required property var modelData
+                        text: modelData.identity
+                        icon.name: root.isRemote(modelData) ? "smartphone"
+                            : (modelData.iconName || modelData.desktopEntry || "media-playback-start")
+                        checkable: true
+                        checked: root.pinned === modelData
+                        onClicked: root.cfg.pinnedPlayer = modelData.identity
+                        PC3.ToolTip.text: (root.isPlaying(modelData) ? "Playing: " : "Paused: ")
+                            + modelData.track + (modelData.artist ? " — " + modelData.artist : "")
+                        PC3.ToolTip.visible: hovered
+                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                }
+            }
 
             // --- now playing ---
             RowLayout {
