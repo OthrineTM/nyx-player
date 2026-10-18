@@ -833,7 +833,7 @@ PlasmoidItem {
                     height: width
                     source: root.playing ? "media-playback-pause" : "media-playback-start"
                     isMask: true
-                    color: root.style.onAccent
+                    color: root.style.accentInk
                 }
             }
         }
@@ -1152,7 +1152,7 @@ PlasmoidItem {
                             height: width
                             source: "audio-volume-high"
                             isMask: true
-                            color: root.eeOn && root.eeRunning ? root.style.onAccent : root.cText
+                            color: root.eeOn && root.eeRunning ? root.style.accentInk : root.cText
                         }
                     }
                     PC3.ToolButton {
@@ -1196,7 +1196,7 @@ PlasmoidItem {
                             text: "Edit effects"
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
-                            color: root.style.onAccent
+                            color: root.style.accentInk
                             font.bold: true
                         }
                     }

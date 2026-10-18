@@ -8,8 +8,8 @@
 //   text      text color             accent   accent color         font  font family
 var builtin = [
     { preset: "theme", name: "Theme", tint: "",        opacity: 5,  border: 8,  borderAccent: false, radius: 10, sheen: 0,  shadow: 0,  glow: 0, textShadow: 0,  text: "",        accent: "",        font: "" },
-    { preset: "glass", name: "Glass", tint: "#ffffff", opacity: 12, border: 30, borderAccent: false, radius: 22, sheen: 55, shadow: 30, glow: 0, textShadow: 40,  text: "#ffffff", accent: "",        font: "" },
-    { preset: "frost", name: "Frost", tint: "#dfe7f5", opacity: 32, border: 45, borderAccent: false, radius: 26, sheen: 30, shadow: 25, glow: 0, textShadow: 50,  text: "#ffffff", accent: "",        font: "" },
+    { preset: "glass", name: "Glass", tint: "#ffffff", opacity: 12, border: 30, borderAccent: false, radius: 22, sheen: 55, shadow: 30, glow: 0, textShadow: 65,  text: "#ffffff", accent: "",        font: "" },
+    { preset: "frost", name: "Frost", tint: "#dfe7f5", opacity: 32, border: 45, borderAccent: false, radius: 26, sheen: 30, shadow: 25, glow: 0, textShadow: 60,  text: "#ffffff", accent: "",        font: "" },
     { preset: "smoke", name: "Smoke", tint: "#08080d", opacity: 42, border: 14, borderAccent: false, radius: 20, sheen: 12, shadow: 40, glow: 0, textShadow: 0,  text: "#f4f3f8", accent: "",        font: "" },
     { preset: "solid", name: "Solid", tint: "#16141d", opacity: 94, border: 6,  borderAccent: false, radius: 18, sheen: 0,  shadow: 45, glow: 0, textShadow: 0,  text: "#f4f2fa", accent: "",        font: "" },
     { preset: "light", name: "Light", tint: "#f7f5fb", opacity: 92, border: 10, borderAccent: false, radius: 24, sheen: 0,  shadow: 25, glow: 0, textShadow: 0,  text: "#1d1b23", accent: "",        font: "" },

@@ -44,8 +44,10 @@ QtObject {
     // ready-made colors for widgets
     readonly property color surface: Qt.alpha(tint, opacity)
     readonly property color edge: borderAccent ? Qt.alpha(accent, border) : Qt.alpha(text, border * 0.45)
-    readonly property color dim: Qt.alpha(text, 0.68)
-    readonly property color faint: Qt.alpha(text, 0.42)
+    // see-through looks put text straight on the wallpaper, so secondary text stays stronger there
+    readonly property bool seeThrough: opacity < 0.3
+    readonly property color dim: Qt.alpha(text, seeThrough ? 0.82 : 0.68)
+    readonly property color faint: Qt.alpha(text, seeThrough ? 0.6 : 0.42)
     // inner cards, buttons and tiles sit on any surface, so they are tinted with the text color
     readonly property color card: Qt.alpha(text, 0.06)
     readonly property color cardHover: Qt.alpha(text, 0.11)
@@ -54,8 +56,8 @@ QtObject {
     readonly property color active: Qt.alpha(accent, 0.42)
     readonly property color activeHover: Qt.alpha(accent, 0.55)
     readonly property color activeEdge: Qt.alpha(accent, 0.9)
-    // readable text on a solid accent fill
-    readonly property color onAccent: luminance(accent) > 0.6 ? "#14121a" : "#ffffff"
+    // readable text on a solid accent fill (not "onAccent": QML reads on + capital as a signal handler)
+    readonly property color accentInk: luminance(accent) > 0.6 ? "#14121a" : "#ffffff"
 
     function luminance(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
 
