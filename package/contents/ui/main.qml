@@ -520,6 +520,10 @@ PlasmoidItem {
                     visible: root.players.length > 1 || root.cfg.pinnedPlayer !== ""
 
                     PC3.ToolButton {
+                        // the theme's tool buttons hug their text; give the chips some room
+                        leftPadding: Kirigami.Units.largeSpacing
+                        rightPadding: Kirigami.Units.largeSpacing
+                        display: PC3.AbstractButton.TextBesideIcon
                         text: "Auto"
                         icon.name: "media-playlist-shuffle"
                         checkable: true
@@ -533,6 +537,10 @@ PlasmoidItem {
                         model: root.players
                         PC3.ToolButton {
                             required property var modelData
+                            // the theme's tool buttons hug their text; give the chips some room
+                            leftPadding: Kirigami.Units.largeSpacing
+                            rightPadding: Kirigami.Units.largeSpacing
+                            display: PC3.AbstractButton.TextBesideIcon
                             text: modelData.identity
                             icon.name: root.isRemote(modelData) ? "smartphone"
                                 : (modelData.iconName || modelData.desktopEntry || "media-playback-start")
