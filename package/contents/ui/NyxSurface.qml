@@ -15,79 +15,92 @@ Item {
     readonly property bool showGlow: style.glow > 0 && style.hasSurface
 
     // the shadow is cast by an opaque copy of the shape and cut out where the surface is,
-    // so a see-through (glass) surface isn't darkened by its own shadow
-    Item {
-        id: shadowLayer
+    // so a see-through (glass) surface isn't darkened by its own shadow.
+    // The effects are built in Loaders: MultiEffect doesn't notice a source or mask whose
+    // layer is switched on later (a look applied after start), and would then draw the
+    // opaque copy itself as a solid black panel.
+    Loader {
         anchors.fill: parent
         anchors.margins: -64
-        visible: false
-        layer.enabled: surf.showShadow
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 64
-            radius: surf.radius
-            color: "black"
+        active: surf.showShadow
+        sourceComponent: Item {
+            Item {
+                id: shadowLayer
+                anchors.fill: parent
+                visible: false
+                layer.enabled: true
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 64
+                    radius: surf.radius
+                    color: "black"
+                }
+            }
+            Item {
+                id: cutout
+                anchors.fill: parent
+                visible: false
+                layer.enabled: true
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 64
+                    radius: surf.radius
+                    color: "black"
+                }
+            }
+            MultiEffect {
+                anchors.fill: parent
+                source: shadowLayer
+                autoPaddingEnabled: false
+                shadowEnabled: true
+                shadowColor: "black"
+                shadowOpacity: Math.min(1, surf.style.shadow)
+                shadowBlur: 1.0
+                blurMax: 48
+                shadowVerticalOffset: 6 + surf.style.shadow * 12
+                shadowScale: 0.98
+                maskEnabled: true
+                maskInverted: true
+                maskSource: cutout
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 0.2
+            }
         }
-    }
-    Item {
-        id: cutout
-        anchors.fill: shadowLayer
-        visible: false
-        layer.enabled: surf.showShadow
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 64
-            radius: surf.radius
-            color: "black"
-        }
-    }
-    MultiEffect {
-        anchors.fill: shadowLayer
-        visible: surf.showShadow
-        source: shadowLayer
-        autoPaddingEnabled: false
-        shadowEnabled: true
-        shadowColor: "black"
-        shadowOpacity: Math.min(1, surf.style.shadow)
-        shadowBlur: 1.0
-        blurMax: 48
-        shadowVerticalOffset: 6 + surf.style.shadow * 12
-        shadowScale: 0.98
-        maskEnabled: true
-        maskInverted: true
-        maskSource: cutout
-        maskThresholdMin: 0.5
-        maskSpreadAtMin: 0.2
     }
 
     // accent glow around the edge (neon)
-    Item {
-        id: glowLayer
+    Loader {
         anchors.fill: parent
         anchors.margins: -48
-        visible: false
-        layer.enabled: surf.showGlow
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 48
-            radius: surf.radius
-            color: "transparent"
-            border.width: 3
-            border.color: surf.style.accent
+        active: surf.showGlow
+        sourceComponent: Item {
+            Item {
+                id: glowLayer
+                anchors.fill: parent
+                visible: false
+                layer.enabled: true
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 48
+                    radius: surf.radius
+                    color: "transparent"
+                    border.width: 3
+                    border.color: surf.style.accent
+                }
+            }
+            MultiEffect {
+                anchors.fill: parent
+                source: glowLayer
+                autoPaddingEnabled: false
+                shadowEnabled: true
+                shadowColor: surf.style.accent
+                shadowOpacity: Math.min(1, surf.style.glow * 1.6)
+                shadowBlur: 1.0
+                blurMax: 32
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: 0
+            }
         }
-    }
-    MultiEffect {
-        anchors.fill: glowLayer
-        visible: surf.showGlow
-        source: glowLayer
-        autoPaddingEnabled: false
-        shadowEnabled: true
-        shadowColor: surf.style.accent
-        shadowOpacity: Math.min(1, surf.style.glow * 1.6)
-        shadowBlur: 1.0
-        blurMax: 32
-        shadowHorizontalOffset: 0
-        shadowVerticalOffset: 0
     }
 
     Rectangle {

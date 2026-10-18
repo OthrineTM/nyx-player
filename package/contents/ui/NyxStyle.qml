@@ -63,17 +63,27 @@ QtObject {
 
     // Apply a look (a preset or a full set of values) to this widget, and to all widgets when shared.
     function apply(newLook) {
-        Presets.toConfig(cfg, newLook)
+        writeLocal(newLook)
         publish()
+    }
+    // writes a look into this widget's config without publishing each half-written step
+    property bool writing: false
+    function writeLocal(l) {
+        writing = true
+        Presets.toConfig(cfg, l)
+        writing = false
     }
     function publish() {
         if (!sharing) return
         s.shared = Presets.fromConfig(cfg)
         exec.run(Presets.writeCommand("style.json", Presets.serialize(s.shared), Qt.btoa))
     }
-    // a look changed in this widget's settings becomes the shared look
+    // a look changed in this widget's settings becomes the shared look, but only once the
+    // shared file has been read: before that, the widget's old local copy would overwrite it
     property bool ready: false
-    onLocalLookChanged: if (ready && Presets.serialize(localLook) !== Presets.serialize(shared || {})) publish()
+    property bool loaded: false
+    onLocalLookChanged: if (ready && loaded && !writing && sharing
+                            && Presets.serialize(localLook) !== Presets.serialize(shared || {})) publish()
     function applyPreset(id) {
         var p = Presets.find(id, userPresets)
         if (p) apply(p)
@@ -95,9 +105,12 @@ QtObject {
             disconnectSource(source)
             var out = (data["stdout"] || "").trim()
             if (source === Presets.readStyleCommand) {
+                s.loaded = true
                 if (out.length === 0) { s.shared = null; return }
-                if (s.shared && Presets.serialize(s.shared) === Presets.serialize(JSON.parse(out))) return
-                try { s.shared = JSON.parse(out) } catch (e) { console.warn("Nyx: bad style.json", e) }
+                try {
+                    var l = JSON.parse(out)
+                    if (!s.shared || Presets.serialize(s.shared) !== Presets.serialize(l)) s.shared = l
+                } catch (e) { console.warn("Nyx: bad style.json", e) }
             } else if (source === Presets.readPresetsCommand) {
                 try { s.userPresets = out.length > 0 ? JSON.parse(out) : [] } catch (e) { s.userPresets = [] }
             }
