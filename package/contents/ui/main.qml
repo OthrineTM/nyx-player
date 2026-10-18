@@ -39,7 +39,7 @@ PlasmoidItem {
 
     readonly property var cfg: Plasmoid.configuration
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
-    readonly property var cardNames: ["Album", "Wide", "Vinyl", "Effects"]
+    readonly property var cardNames: ["Album", "Wide", "Vinyl", "Effects", "Visualizer"]
 
     Plasmoid.backgroundHints: onDesktop ? PlasmaCore.Types.NoBackground : PlasmaCore.Types.DefaultBackground
     preferredRepresentation: onDesktop ? fullRepresentation : compactRepresentation
@@ -136,6 +136,64 @@ PlasmoidItem {
         onTriggered: root.player.updatePosition()
     }
 
+    // ---- audio visualizer -----------------------------------------------
+    // cava runs in the background and keeps overwriting one line of bar heights in
+    // $XDG_RUNTIME_DIR (a RAM disk); the Visualizer card reads that line while music plays.
+    property var levels: []
+    property bool cavaOk: false
+    property bool cavaChecked: false
+    property bool cavaLaunched: false
+    readonly property bool vizShown: onDesktop && cfg.deskFace === 4
+    readonly property bool vizActive: vizShown && playing
+    readonly property int vizBars: Math.max(4, Math.min(64, cfg.visualizerBars))
+    readonly property string cavaPattern: "'^cava -p .*/nyx-player-cava[.]conf$'"
+    readonly property string cavaReadCmd: 'cat "${XDG_RUNTIME_DIR:-/tmp}/nyx-player-cava" 2>/dev/null'
+
+    // (re)starts cava; the file names are built from $f so this command line
+    // never matches cavaPattern itself
+    function cavaStartCmd() {
+        return 'command -v cava >/dev/null || exit 3; '
+            + 'pkill -f ' + cavaPattern + '; sleep 0.2; '
+            + 'f="${XDG_RUNTIME_DIR:-/tmp}/nyx-player-cava"; '
+            + "printf '[general]\\nframerate = 25\\nbars = %s\\n[output]\\nmethod = raw\\nraw_target = /dev/stdout\\n"
+            + "data_format = ascii\\nascii_max_range = 100\\nbar_delimiter = 59\\nframe_delimiter = 10\\n' "
+            + vizBars + ' > "$f.conf"; '
+            + "setsid sh -c 'cava -p \"$0.conf\" | while IFS= read -r l; do printf \"%s\\n\" \"$l\" > \"$0\"; done' "
+            + '"$f" >/dev/null 2>&1 &'
+    }
+    function cavaStart() { cavaLaunched = true; viz.run(cavaStartCmd()) }
+    function cavaStop() { cavaLaunched = false; cavaOk = false; viz.run("pkill -f " + cavaPattern + "; true") }
+
+    P5Support.DataSource {
+        id: viz
+        engine: "executable"
+        function run(cmd) { if (connectedSources.indexOf(cmd) < 0) connectSource(cmd) }
+        onNewData: function (source, data) {
+            disconnectSource(source)
+            if (source === root.cavaReadCmd) {
+                var v = (data["stdout"] || "").trim().split(";").filter(function (x) { return x.length > 0 })
+                if (v.length === root.vizBars) root.levels = v.map(Number)
+            } else if (source.indexOf("command -v cava") === 0) {
+                root.cavaOk = data["exit code"] === 0
+                root.cavaChecked = true
+            }
+        }
+    }
+
+    Timer {
+        interval: 40
+        repeat: true
+        running: root.vizActive && root.cavaOk
+        onTriggered: viz.run(root.cavaReadCmd)
+        onRunningChanged: if (!running) root.levels = []
+    }
+
+    // cava starts the first time music plays on the Visualizer card and stops when the card goes
+    onVizActiveChanged: if (vizActive && !cavaLaunched) cavaStart()
+    onVizShownChanged: if (!vizShown && cavaLaunched) cavaStop()
+    onVizBarsChanged: if (cavaLaunched) cavaStart()
+    Component.onDestruction: if (cavaLaunched) cavaStop()
+
     // ---- Easy Effects -------------------------------------------------
     property var eePresets: []       // raw preset names
     property string eeCurrent: ""
@@ -166,6 +224,10 @@ PlasmoidItem {
             return { base: b, label: label, variants: map[b] }
         })
     }
+    // the presets offered as buttons and by the arrows: everything not hidden on the Presets page
+    readonly property var visibleGroups: eeGroups.filter(function (g) {
+        return (cfg.hiddenPresets || []).indexOf(g.base) < 0
+    })
     readonly property var currentGroup: {
         for (var i = 0; i < eeGroups.length; i++) {
             var v = eeGroups[i].variants
@@ -186,10 +248,13 @@ PlasmoidItem {
         return names[id] || id.replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase() })
     }
     // step through preset groups from the desktop Effects card
+    // (hidden presets are skipped; from a hidden one it starts at either end)
     function stepPreset(d) {
-        if (eeGroups.length === 0) return
-        var i = currentGroup ? eeGroups.indexOf(currentGroup) : -1
-        loadPreset(presetFor(eeGroups[(i + d + eeGroups.length) % eeGroups.length]))
+        var list = visibleGroups
+        if (list.length === 0) return
+        var i = currentGroup ? list.indexOf(currentGroup) : -1
+        if (i < 0) i = d > 0 ? -1 : list.length
+        loadPreset(presetFor(list[(i + d + list.length) % list.length]))
     }
 
     function presetFor(group) {
@@ -237,7 +302,10 @@ PlasmoidItem {
         }
     }
 
-    Component.onCompleted: refresh()
+    Component.onCompleted: {
+        refresh()
+        if (vizActive && !cavaLaunched) cavaStart()
+    }
     onExpandedChanged: if (root.expanded) root.refresh()
     // the desktop Effects card keeps itself up to date
     Timer {
@@ -387,9 +455,9 @@ PlasmoidItem {
 
     // ---- popup ---------------------------------------------------------
     fullRepresentation: Item {
-        Layout.preferredWidth: root.onDesktop ? [230, 440, 280, 260][root.cfg.deskFace] ?? 230 : Kirigami.Units.gridUnit * 27
+        Layout.preferredWidth: root.onDesktop ? [230, 440, 280, 260, 360][root.cfg.deskFace] ?? 230 : Kirigami.Units.gridUnit * 27
         Layout.minimumWidth: root.onDesktop ? 150 : Kirigami.Units.gridUnit * 27
-        Layout.preferredHeight: root.onDesktop ? [400, 150, 340, 340][root.cfg.deskFace] ?? 400 : (view.item ? view.item.implicitHeight : 0)
+        Layout.preferredHeight: root.onDesktop ? [400, 150, 340, 340, 280][root.cfg.deskFace] ?? 400 : (view.item ? view.item.implicitHeight : 0)
         Layout.minimumHeight: root.onDesktop ? 110 : Layout.preferredHeight
 
         // labels and controls follow the style's colors
@@ -400,7 +468,7 @@ PlasmoidItem {
             id: view
             anchors.fill: parent
             sourceComponent: !root.onDesktop ? popupView
-                : [albumCard, wideCard, vinylCard, effectsCard][root.cfg.deskFace] ?? albumCard
+                : [albumCard, wideCard, vinylCard, effectsCard, visualizerCard][root.cfg.deskFace] ?? albumCard
         }
     }
 
@@ -690,7 +758,7 @@ PlasmoidItem {
                     enabled: root.eeOn
                     opacity: enabled ? 1 : 0.5
                     Repeater {
-                        model: root.eeGroups
+                        model: root.visibleGroups
                         PC3.Button {
                             required property var modelData
                             Layout.fillWidth: true
@@ -1131,7 +1199,7 @@ PlasmoidItem {
                     Layout.fillHeight: true
                     PC3.ToolButton {
                         icon.name: "go-previous"
-                        enabled: root.eeGroups.length > 1
+                        enabled: root.visibleGroups.length > 1
                         onClicked: root.stepPreset(-1)
                     }
                     Item {
@@ -1157,7 +1225,7 @@ PlasmoidItem {
                     }
                     PC3.ToolButton {
                         icon.name: "go-next"
-                        enabled: root.eeGroups.length > 1
+                        enabled: root.visibleGroups.length > 1
                         onClicked: root.stepPreset(1)
                     }
                 }
@@ -1217,6 +1285,96 @@ PlasmoidItem {
                             verticalAlignment: Text.AlignVCenter
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // 4: visualizer: cover and title on top, audio bars from cava, controls at the bottom
+    Component {
+        id: visualizerCard
+        DeskCard {
+            id: card
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: card.pad
+                spacing: Kirigami.Units.largeSpacing
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+                    Art {
+                        readonly property real side: Math.min(Kirigami.Units.gridUnit * 3.5, card.height * 0.22)
+                        Layout.preferredWidth: side
+                        Layout.preferredHeight: side
+                        radius: root.style.innerRadius
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        PC3.Label {
+                            Layout.fillWidth: true
+                            text: root.title
+                            font.bold: true
+                            font.pixelSize: Math.min(card.width * 0.06, Kirigami.Units.gridUnit * 1.2)
+                            font.family: root.style.font || Kirigami.Theme.defaultFont.family
+                            color: root.style.text
+                            elide: Text.ElideRight
+                        }
+                        PC3.Label {
+                            Layout.fillWidth: true
+                            visible: root.artist.length > 0
+                            text: root.artist
+                            color: root.style.dim
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+                // audio bars growing from the middle; flat when paused or without cava
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Row {
+                        id: bars
+                        anchors.fill: parent
+                        visible: !(root.cavaChecked && !root.cavaOk)
+                        readonly property real barW: width / (1.35 * root.vizBars - 0.35)
+                        spacing: barW * 0.35
+                        Repeater {
+                            model: root.vizBars
+                            Item {
+                                required property int index
+                                width: bars.barW
+                                height: bars.height
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                    height: Math.max(Math.min(bars.barW * 0.5, 6), parent.height * Math.min(100, root.levels[index] || 0) / 100)
+                                    radius: Math.min(width / 2, 3)
+                                    color: root.levels.length > 0 ? root.cAccent : root.style.track
+                                    Behavior on height { NumberAnimation { duration: 60 } }
+                                }
+                            }
+                        }
+                    }
+                    PC3.Label {
+                        anchors.centerIn: parent
+                        width: parent.width
+                        visible: root.cavaChecked && !root.cavaOk
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: "Install cava to see the audio bars"
+                        color: root.style.faint
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    PC3.Label { text: root.fmtTime(root.position); font: Kirigami.Theme.smallFont; color: root.style.dim }
+                    SeekBar { Layout.fillWidth: true }
+                    PC3.Label { text: root.fmtTime(root.length); font: Kirigami.Theme.smallFont; color: root.style.dim }
+                }
+                Transport {
+                    Layout.alignment: Qt.AlignHCenter
+                    size: Math.min(Kirigami.Units.gridUnit * 2.2, card.width / 7)
                 }
             }
         }

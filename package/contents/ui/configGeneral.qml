@@ -9,6 +9,7 @@ KCM.SimpleKCM {
     property alias cfg_compactWidth: compactWidth.value
     property alias cfg_coverStyle: coverStyle.currentIndex
     property alias cfg_deskFace: deskFace.currentIndex
+    property alias cfg_visualizerBars: visualizerBars.value
     property alias cfg_accentFromArt: accentFromArt.checked
     property alias cfg_preferLocal: preferLocal.checked
 
@@ -37,7 +38,13 @@ KCM.SimpleKCM {
         QQC2.ComboBox {
             id: deskFace
             Kirigami.FormData.label: "Card:"
-            model: ["Album (cover fills the card)", "Wide (cover beside the controls)", "Vinyl", "Easy Effects"]
+            model: ["Album (cover fills the card)", "Wide (cover beside the controls)", "Vinyl", "Easy Effects", "Audio visualizer"]
+        }
+        RowLayout {
+            Kirigami.FormData.label: "Visualizer bars:"
+            enabled: deskFace.currentIndex === 4
+            QQC2.SpinBox { id: visualizerBars; from: 4; to: 64 }
+            QQC2.Label { text: "needs cava"; opacity: 0.7 }
         }
         QQC2.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 24

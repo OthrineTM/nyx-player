@@ -16,9 +16,10 @@ By default colors come from your active Plasma theme, with the accent taken from
   - a player switcher: stay on Auto, or pick one player by hand when several are open
 - **Easy Effects section:**
   - every output preset as a button
+  - hide the presets you don't want: right-click → **Configure Nyx Player…** → **Presets**. Hidden presets are also skipped by the arrows on the Easy Effects card, and they stay in Easy Effects.
   - one on/off switch for all effects
   - a button that opens the Easy Effects window
-- **Desktop cards:** drag the player onto the desktop for a card: **Album** (the cover fills the card, like a phone widget), **Wide**, **Vinyl**, or **Easy Effects** (the current preset, its effects, quick preset switching, Edit effects and Bypass). Right-click and choose **Next Card** to switch.
+- **Desktop cards:** drag the player onto the desktop for a card: **Album** (the cover fills the card, like a phone widget), **Wide**, **Vinyl**, **Easy Effects** (the current preset, its effects, quick preset switching, Edit effects and Bypass), or **Audio visualizer** (cover, title, seek bar and controls around live audio bars from [cava](https://github.com/karlstav/cava); set the number of bars in the settings). Right-click and choose **Next Card** to switch.
 - **Album art colors:** the accent color follows the cover of what's playing. Turn it off in the settings.
 - **Styles:** the shared Nyx looks (Glass, Frost, Smoke, Solid, Light, Neon, Clear, Theme), tweakable, with your own saved presets.
 - **Phone players:** media from your phone through KDE Connect ranks below this computer's players. Turn this off with *Prefer This Computer's Players* in the right-click menu.
@@ -31,6 +32,7 @@ Works with any player that supports MPRIS: Spotify, browsers, VLC, mpv and other
 - KDE Plasma 6 (tested on 6.8.0)
 - Easy Effects (only for the Easy Effects section, but the popup expects it)
 - WirePlumber (`wpctl`), which most PipeWire setups already have
+- Optional: `cava` for the Audio visualizer card (`sudo pacman -S cava`, `sudo apt install cava`, `sudo dnf install cava`). Without it the card shows a hint instead of bars.
 
 ## Install
 

@@ -15,8 +15,12 @@
     <entry name="compactStyle" type="Int"><default>0</default></entry>
     <!-- popup cover: 0 spinning vinyl, 1 square, 2 round -->
     <entry name="coverStyle" type="Int"><default>0</default></entry>
-    <!-- on the desktop: 0 album, 1 wide, 2 vinyl, 3 effects -->
+    <!-- on the desktop: 0 album, 1 wide, 2 vinyl, 3 effects, 4 visualizer -->
     <entry name="deskFace" type="Int"><default>0</default></entry>
+    <!-- audio bars on the Visualizer card; needs cava -->
+    <entry name="visualizerBars" type="Int"><default>24</default></entry>
+    <!-- Easy Effects presets (group names, without -min/-max) left out of the popup and the Effects card -->
+    <entry name="hiddenPresets" type="StringList"><default></default></entry>
     <entry name="accentFromArt" type="Bool"><default>true</default></entry>
 
     <!-- shared Nyx style (see NyxPresets.js); the default "Theme" look matches Plasma -->
