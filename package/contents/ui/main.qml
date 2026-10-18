@@ -12,13 +12,37 @@ import org.kde.kirigami as Kirigami
 PlasmoidItem {
     id: root
 
-    // all colors come from the active Plasma/KDE theme
-    readonly property color cAccent: Kirigami.Theme.highlightColor
-    readonly property color cText: Kirigami.Theme.textColor
-    readonly property color cMuted: Kirigami.Theme.disabledTextColor
+    // colors come from the shared Nyx style (which follows the Plasma theme by default),
+    // with the accent optionally taken from the album art
+    readonly property color themeText: Kirigami.Theme.textColor
+    readonly property color themeAccent: Kirigami.Theme.highlightColor
+    readonly property color themeBackground: Kirigami.Theme.backgroundColor
+    property NyxStyle style: NyxStyle {
+        cfg: root.cfg
+        themeText: root.themeText
+        themeAccent: root.themeAccent
+        themeBackground: root.themeBackground
+        accentOverride: root.cfg.accentFromArt && root.artUrl.length > 0 ? root.artAccent : "transparent"
+    }
+    Kirigami.ImageColors {
+        id: artColors
+        source: root.artUrl
+    }
+    onArtUrlChanged: artColors.update()
+    // the art's most colorful tone, lifted so it reads on dark and light surfaces
+    readonly property color artAccent: Qt.hsla(artColors.highlight.hslHue, Math.max(0.45, artColors.highlight.hslSaturation),
+                                               Math.min(0.72, Math.max(0.5, artColors.highlight.hslLightness)), 1)
+    readonly property color cAccent: style.accent
+    readonly property color cText: style.text
+    readonly property color cMuted: style.faint
     readonly property color cBg: Kirigami.Theme.backgroundColor
 
     readonly property var cfg: Plasmoid.configuration
+    readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
+    readonly property var cardNames: ["Album", "Wide", "Vinyl", "Effects"]
+
+    Plasmoid.backgroundHints: onDesktop ? PlasmaCore.Types.NoBackground : PlasmaCore.Types.DefaultBackground
+    preferredRepresentation: onDesktop ? fullRepresentation : compactRepresentation
     readonly property string helper: Qt.resolvedUrl("../code/ee.sh").toString().replace("file://", "")
 
     Plasmoid.contextualActions: [
@@ -28,6 +52,17 @@ PlasmoidItem {
             checkable: true
             checked: root.cfg.preferLocal
             onTriggered: root.cfg.preferLocal = checked
+        },
+        PlasmaCore.Action {
+            visible: root.onDesktop
+            text: "Next Card: " + root.cardNames[(root.cfg.deskFace + 1) % root.cardNames.length]
+            icon.name: "view-preview"
+            onTriggered: root.cfg.deskFace = (root.cfg.deskFace + 1) % root.cardNames.length
+        },
+        PlasmaCore.Action {
+            text: "Next Style: " + root.style.nextPreset().name
+            icon.name: "preferences-desktop-theme"
+            onTriggered: root.style.apply(root.style.nextPreset())
         }
     ]
 
@@ -107,6 +142,7 @@ PlasmoidItem {
     property bool eeRunning: false
     property bool eeOn: true
     property string sinkName: ""
+    property var eeEffects: []       // effects in the current preset, in order
 
     // "rock-min"/"rock-max" -> one group "rock" with two variants
     readonly property var eeGroups: {
@@ -142,6 +178,20 @@ PlasmoidItem {
         return m ? m[1] : ""
     }
 
+    // "bass_enhancer" -> "Bass Enhancer"
+    function effectLabel(id) {
+        var names = { autogain: "Auto Gain", bass_enhancer: "Bass Enhancer", bass_loudness: "Bass Loudness",
+                      crystalizer: "Crystalizer", deesser: "De-esser", exciter: "Exciter", rnnoise: "Noise Reduction",
+                      stereo_tools: "Stereo Tools", multiband_compressor: "Multiband Compressor" }
+        return names[id] || id.replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase() })
+    }
+    // step through preset groups from the desktop Effects card
+    function stepPreset(d) {
+        if (eeGroups.length === 0) return
+        var i = currentGroup ? eeGroups.indexOf(currentGroup) : -1
+        loadPreset(presetFor(eeGroups[(i + d + eeGroups.length) % eeGroups.length]))
+    }
+
     function presetFor(group) {
         var v = group.variants
         return v[cfg.variant] || v.max || v.min || v.single
@@ -170,23 +220,32 @@ PlasmoidItem {
         onNewData: function (source, data) {
             disconnectSource(source)
             if (!source.endsWith("' state")) return
-            var presets = []
+            var presets = [], effects = []
             ;(data["stdout"] || "").split("\n").forEach(function (line) {
                 var i = line.indexOf("=")
                 if (i < 0) return
                 var k = line.slice(0, i), v = line.slice(i + 1)
                 if (k === "preset") presets.push(v)
+                else if (k === "effect") effects.push(v)
                 else if (k === "current") root.eeCurrent = v
                 else if (k === "running") root.eeRunning = v === "1"
                 else if (k === "bypass") root.eeOn = v.trim() !== "1"
                 else if (k === "sink") root.sinkName = v
             })
             root.eePresets = presets
+            root.eeEffects = effects
         }
     }
 
     Component.onCompleted: refresh()
     onExpandedChanged: if (root.expanded) root.refresh()
+    // the desktop Effects card keeps itself up to date
+    Timer {
+        interval: 5000
+        repeat: true
+        running: root.onDesktop && root.cfg.deskFace === 3
+        onTriggered: root.refresh()
+    }
 
     // ---- small reusable bits -----------------------------------------
     component Chip: Rectangle {
@@ -218,10 +277,12 @@ PlasmoidItem {
     }
 
     // ---- panel ---------------------------------------------------------
+    // compactStyle: 0 cover, title and controls, 1 cover and title, 2 cover and controls
     compactRepresentation: MouseArea {
         id: compact
-        Layout.preferredWidth: root.cfg.compactWidth
-        Layout.minimumWidth: root.cfg.compactWidth
+        readonly property int kind: root.cfg.compactStyle
+        Layout.preferredWidth: kind === 2 ? compact.height * 4.2 : root.cfg.compactWidth
+        Layout.minimumWidth: kind === 2 ? compact.height * 4.2 : root.cfg.compactWidth
         Layout.fillHeight: true
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
@@ -280,6 +341,7 @@ PlasmoidItem {
             }
 
             ColumnLayout {
+                visible: compact.kind !== 2
                 Layout.fillWidth: true
                 spacing: 0
                 PC3.Label {
@@ -300,21 +362,21 @@ PlasmoidItem {
             }
 
             PC3.ToolButton {
-                visible: root.ready
+                visible: root.ready && compact.kind !== 1
                 icon.name: "media-skip-backward"
                 Layout.preferredWidth: compact.height - 6
                 Layout.preferredHeight: compact.height - 6
                 onClicked: root.player.Previous()
             }
             PC3.ToolButton {
-                visible: root.ready
+                visible: root.ready && compact.kind !== 1
                 icon.name: root.playing ? "media-playback-pause" : "media-playback-start"
                 Layout.preferredWidth: compact.height - 6
                 Layout.preferredHeight: compact.height - 6
                 onClicked: root.player.PlayPause()
             }
             PC3.ToolButton {
-                visible: root.ready
+                visible: root.ready && compact.kind !== 1
                 icon.name: "media-skip-forward"
                 Layout.preferredWidth: compact.height - 6
                 Layout.preferredHeight: compact.height - 6
@@ -325,152 +387,668 @@ PlasmoidItem {
 
     // ---- popup ---------------------------------------------------------
     fullRepresentation: Item {
-        id: full
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 27
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 27
-        Layout.preferredHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
-        Layout.minimumHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
+        Layout.preferredWidth: root.onDesktop ? [230, 440, 280, 260][root.cfg.deskFace] ?? 230 : Kirigami.Units.gridUnit * 27
+        Layout.minimumWidth: root.onDesktop ? 150 : Kirigami.Units.gridUnit * 27
+        Layout.preferredHeight: root.onDesktop ? [400, 150, 340, 340][root.cfg.deskFace] ?? 400 : (view.item ? view.item.implicitHeight : 0)
+        Layout.minimumHeight: root.onDesktop ? 110 : Layout.preferredHeight
 
-        // faint blurred cover behind the theme's own popup background
+        // labels and controls follow the style's colors
+        Kirigami.Theme.textColor: root.style.text
+        Kirigami.Theme.highlightColor: root.style.accent
+
+        Loader {
+            id: view
+            anchors.fill: parent
+            sourceComponent: !root.onDesktop ? popupView
+                : [albumCard, wideCard, vinylCard, effectsCard][root.cfg.deskFace] ?? albumCard
+        }
+    }
+
+    // ---- popup (panel) ---------------------------------------------------
+    Component {
+        id: popupView
+        Item {
+            id: full
+            implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
+
+            // faint blurred cover behind the theme's own popup background
+            Image {
+                id: bgArt
+                anchors.fill: parent
+                source: root.artUrl
+                fillMode: Image.PreserveAspectCrop
+                sourceSize.width: 256
+                visible: false
+            }
+            Rectangle {
+                id: bgMask
+                anchors.fill: parent
+                radius: Kirigami.Units.cornerRadius * 2
+                visible: false
+                layer.enabled: true
+            }
+            MultiEffect {
+                anchors.fill: parent
+                source: bgArt
+                visible: root.artUrl.length > 0
+                blurEnabled: true
+                blur: 1.0
+                blurMax: 64
+                maskEnabled: true
+                maskSource: bgMask
+                opacity: 0.22
+            }
+
+            ColumnLayout {
+                id: content
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.largeSpacing
+
+                // --- player switcher ---
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    visible: root.players.length > 1 || root.cfg.pinnedPlayer !== ""
+
+                    PC3.ToolButton {
+                        text: "Auto"
+                        icon.name: "media-playlist-shuffle"
+                        checkable: true
+                        checked: root.pinned === null
+                        onClicked: root.cfg.pinnedPlayer = ""
+                        PC3.ToolTip.text: "Follow whichever player fits best"
+                        PC3.ToolTip.visible: hovered
+                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                    Repeater {
+                        model: root.players
+                        PC3.ToolButton {
+                            required property var modelData
+                            text: modelData.identity
+                            icon.name: root.isRemote(modelData) ? "smartphone"
+                                : (modelData.iconName || modelData.desktopEntry || "media-playback-start")
+                            checkable: true
+                            checked: root.pinned === modelData
+                            onClicked: root.cfg.pinnedPlayer = modelData.identity
+                            PC3.ToolTip.text: (root.isPlaying(modelData) ? "Playing: " : "Paused: ")
+                                + modelData.track + (modelData.artist ? " — " + modelData.artist : "")
+                            PC3.ToolTip.visible: hovered
+                            PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
+                    }
+                }
+
+                // --- now playing ---
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.gridUnit
+
+                    Item {
+                        id: disc
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 8
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+                        Layout.margins: 4
+
+                        readonly property int kind: root.cfg.coverStyle   // 0 vinyl, 1 square, 2 round
+                        Rectangle {
+                            visible: disc.kind !== 1
+                            anchors.centerIn: parent
+                            width: parent.width + 10
+                            height: width
+                            radius: width / 2
+                            color: "transparent"
+                            border.width: 2
+                            border.color: Qt.alpha(root.cAccent, root.playing ? 0.9 : 0.35)
+                            Behavior on border.color { ColorAnimation { duration: Kirigami.Units.longDuration } }
+                        }
+
+                        Item {
+                            id: spinner
+                            anchors.fill: parent
+                            Image {
+                                id: discArt
+                                anchors.fill: parent
+                                source: root.artUrl
+                                fillMode: Image.PreserveAspectCrop
+                                sourceSize.width: 300
+                                visible: false
+                            }
+                            Rectangle {
+                                id: discMask
+                                anchors.fill: parent
+                                radius: disc.kind === 1 ? root.style.innerRadius * 1.5 : width / 2
+                                visible: false
+                                layer.enabled: true
+                            }
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: discMask.radius
+                                color: Qt.alpha(root.cText, 0.08)
+                                visible: root.artUrl.length === 0
+                                Kirigami.Icon {
+                                    anchors.centerIn: parent
+                                    width: Kirigami.Units.iconSizes.large
+                                    height: width
+                                    source: "media-default-album"
+                                }
+                            }
+                            MultiEffect {
+                                anchors.fill: parent
+                                source: discArt
+                                maskEnabled: true
+                                maskSource: discMask
+                                visible: root.artUrl.length > 0
+                            }
+                            // vinyl grooves
+                            Repeater {
+                                model: disc.kind === 0 ? 3 : 0
+                                Rectangle {
+                                    required property int index
+                                    anchors.centerIn: parent
+                                    width: spinner.width * (0.45 + index * 0.17)
+                                    height: width
+                                    radius: width / 2
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: Qt.rgba(0, 0, 0, 0.18)
+                                }
+                            }
+                            NumberAnimation on rotation {
+                                from: 0; to: 360
+                                duration: 14000
+                                loops: Animation.Infinite
+                                running: disc.kind === 0
+                                paused: !root.playing
+                            }
+                        }
+                        // spindle hole
+                        Rectangle {
+                            visible: disc.kind === 0
+                            anchors.centerIn: parent
+                            width: parent.width * 0.18
+                            height: width
+                            radius: width / 2
+                            color: root.cBg
+                            border.width: 2
+                            border.color: Qt.alpha(root.cAccent, 0.8)
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
+
+                        Kirigami.Heading {
+                            Layout.fillWidth: true
+                            level: 3
+                            text: root.title
+                            elide: Text.ElideRight
+                            maximumLineCount: 2
+                            wrapMode: Text.Wrap
+                        }
+                        PC3.Label {
+                            Layout.fillWidth: true
+                            visible: root.artist.length > 0
+                            text: "by " + root.artist
+                            opacity: 0.75
+                            elide: Text.ElideRight
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: Kirigami.Units.smallSpacing
+                            Chip { visible: root.sinkName.length > 0; icon: "audio-headphones"; text: root.sinkName.replace(/ Analog Stereo$/, "") }
+                            Chip { visible: root.source.length > 0; text: "via " + root.source }
+                        }
+
+                        PC3.Slider {
+                            id: seek
+                            Layout.fillWidth: true
+                            from: 0
+                            to: Math.max(1, root.length)
+                            value: pressed ? value : root.position
+                            enabled: root.ready && root.player.canSeek
+                            onPressedChanged: if (!pressed) root.player.position = value
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: -Kirigami.Units.smallSpacing
+                            PC3.Label { text: root.fmtTime(seek.pressed ? seek.value : root.position); font: Kirigami.Theme.smallFont; opacity: 0.7 }
+                            Item { Layout.fillWidth: true }
+                            PC3.Label { text: root.fmtTime(root.length); font: Kirigami.Theme.smallFont; opacity: 0.7 }
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: Kirigami.Units.largeSpacing
+                            PC3.ToolButton {
+                                icon.name: "media-skip-backward"
+                                enabled: root.ready && root.player.canGoPrevious
+                                onClicked: root.player.Previous()
+                            }
+                            PC3.RoundButton {
+                                icon.name: root.playing ? "media-playback-pause" : "media-playback-start"
+                                icon.width: Kirigami.Units.iconSizes.medium
+                                icon.height: Kirigami.Units.iconSizes.medium
+                                highlighted: true
+                                enabled: root.ready
+                                onClicked: root.player.PlayPause()
+                            }
+                            PC3.ToolButton {
+                                icon.name: "media-skip-forward"
+                                enabled: root.ready && root.player.canGoNext
+                                onClicked: root.player.Next()
+                            }
+                        }
+                    }
+                }
+
+                Kirigami.Separator { Layout.fillWidth: true }
+
+                // --- Easy Effects ---
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    Kirigami.Icon {
+                        source: "com.github.wwmm.easyeffects"
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
+                    }
+                    Kirigami.Heading {
+                        level: 4
+                        text: "Easy Effects"
+                    }
+                    PC3.Label {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: Kirigami.Units.smallSpacing
+                        text: !root.eeRunning ? "not running"
+                            : (root.eeOn ? root.eeCurrent : "bypassed")
+                        color: root.eeOn && root.eeRunning ? root.cAccent : root.cMuted
+                        elide: Text.ElideRight
+                    }
+                    PC3.Switch {
+                        checked: root.eeOn && root.eeRunning
+                        onToggled: root.setEffects(checked)
+                        PC3.ToolTip.text: checked ? "Turn effects off (bypass)" : "Turn effects on"
+                        PC3.ToolTip.visible: hovered
+                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                    PC3.ToolButton {
+                        icon.name: "configure"
+                        onClicked: exec.run("bash '" + root.helper + "' open")
+                        PC3.ToolTip.text: "Open Easy Effects"
+                        PC3.ToolTip.visible: hovered
+                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 4
+                    rowSpacing: Kirigami.Units.smallSpacing
+                    columnSpacing: Kirigami.Units.smallSpacing
+                    enabled: root.eeOn
+                    opacity: enabled ? 1 : 0.5
+                    Repeater {
+                        model: root.eeGroups
+                        PC3.Button {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1   // equal columns
+                            text: modelData.label
+                            checkable: true
+                            checked: root.currentGroup !== null && root.currentGroup.base === modelData.base
+                            onClicked: {
+                                checked = Qt.binding(function () { return root.currentGroup !== null && root.currentGroup.base === modelData.base })
+                                root.loadPreset(root.presetFor(modelData))
+                            }
+                            PC3.ToolTip.text: modelData.base
+                            PC3.ToolTip.visible: hovered && contentItem.truncated === true
+                            PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.currentGroup !== null && !!root.currentGroup.variants.min && !!root.currentGroup.variants.max
+                    enabled: root.eeOn
+                    PC3.Label { text: "Intensity"; opacity: 0.75 }
+                    Item { Layout.fillWidth: true }
+                    Repeater {
+                        model: ["min", "max"]
+                        PC3.Button {
+                            required property string modelData
+                            text: modelData === "min" ? "Min" : "Max"
+                            checkable: true
+                            checked: root.currentVariant === modelData
+                            onClicked: {
+                                checked = Qt.binding(function () { return root.currentVariant === modelData })
+                                root.cfg.variant = modelData
+                                root.loadPreset(root.currentGroup.variants[modelData])
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- desktop cards ---------------------------------------------------
+    // cover art clipped to a rounded rectangle or a circle
+    component Art: Item {
+        id: art
+        property real radius: 0
+        property bool showPlaceholder: true
         Image {
-            id: bgArt
+            id: artImage
             anchors.fill: parent
             source: root.artUrl
             fillMode: Image.PreserveAspectCrop
-            sourceSize.width: 256
+            sourceSize.width: 512
             visible: false
         }
         Rectangle {
-            id: bgMask
+            id: artMask
             anchors.fill: parent
-            radius: Kirigami.Units.cornerRadius * 2
+            radius: art.radius
             visible: false
             layer.enabled: true
         }
         MultiEffect {
             anchors.fill: parent
-            source: bgArt
-            visible: root.artUrl.length > 0
-            blurEnabled: true
-            blur: 1.0
-            blurMax: 64
+            source: artImage
             maskEnabled: true
-            maskSource: bgMask
-            opacity: 0.22
+            maskSource: artMask
+            visible: root.artUrl.length > 0
         }
-
-        ColumnLayout {
-            id: content
+        Rectangle {
             anchors.fill: parent
-            anchors.margins: Kirigami.Units.largeSpacing
-            spacing: Kirigami.Units.largeSpacing
+            radius: art.radius
+            visible: art.showPlaceholder && root.artUrl.length === 0
+            color: root.style.card
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                width: Math.min(parent.width, parent.height) * 0.4
+                height: width
+                source: "media-default-album"
+            }
+        }
+    }
 
-            // --- player switcher ---
-            Flow {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-                visible: root.players.length > 1 || root.cfg.pinnedPlayer !== ""
+    component TransportButton: PC3.AbstractButton {
+        id: sb
+        property string iconName
+        property real size
+        property bool onArt
+        Layout.preferredWidth: sb.size * 1.25
+        Layout.preferredHeight: sb.size
+        hoverEnabled: true
+        background: Rectangle {
+            radius: root.style.innerRadius
+            color: sb.onArt ? Qt.rgba(0, 0, 0, sb.hovered ? 0.5 : 0.35)
+                            : (sb.hovered ? root.style.cardHover : root.style.card)
+            border.color: sb.onArt ? Qt.rgba(1, 1, 1, 0.12) : root.style.cardEdge
+        }
+        contentItem: Item {
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                width: sb.size * 0.5
+                height: width
+                source: sb.iconName
+                isMask: true
+                color: sb.onArt ? "white" : root.cText
+            }
+        }
+    }
 
-                PC3.ToolButton {
-                    text: "Auto"
-                    icon.name: "media-playlist-shuffle"
-                    checkable: true
-                    checked: root.pinned === null
-                    onClicked: root.cfg.pinnedPlayer = ""
-                    PC3.ToolTip.text: "Follow whichever player fits best"
-                    PC3.ToolTip.visible: hovered
-                    PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+    // previous / play / next; the play button is a filled accent pill
+    component Transport: RowLayout {
+        id: tr
+        property real size: Kirigami.Units.gridUnit * 2.2
+        property bool onArt: false     // drawn over the cover: frosted buttons
+        spacing: size * 0.25
+        TransportButton {
+            size: tr.size
+            onArt: tr.onArt
+            iconName: "media-skip-backward"
+            enabled: root.ready && root.player.canGoPrevious
+            onClicked: root.player.Previous()
+        }
+        PC3.AbstractButton {
+            id: playButton
+            Layout.preferredWidth: tr.size * 1.6
+            Layout.preferredHeight: tr.size
+            enabled: root.ready
+            hoverEnabled: true
+            onClicked: root.player.PlayPause()
+            background: Rectangle {
+                radius: root.style.innerRadius
+                color: playButton.hovered ? Qt.lighter(root.cAccent, 1.12) : root.cAccent
+            }
+            contentItem: Item {
+                Kirigami.Icon {
+                    anchors.centerIn: parent
+                    width: tr.size * 0.55
+                    height: width
+                    source: root.playing ? "media-playback-pause" : "media-playback-start"
+                    isMask: true
+                    color: root.style.onAccent
                 }
-                Repeater {
-                    model: root.players
-                    PC3.ToolButton {
-                        required property var modelData
-                        text: modelData.identity
-                        icon.name: root.isRemote(modelData) ? "smartphone"
-                            : (modelData.iconName || modelData.desktopEntry || "media-playback-start")
-                        checkable: true
-                        checked: root.pinned === modelData
-                        onClicked: root.cfg.pinnedPlayer = modelData.identity
-                        PC3.ToolTip.text: (root.isPlaying(modelData) ? "Playing: " : "Paused: ")
-                            + modelData.track + (modelData.artist ? " — " + modelData.artist : "")
-                        PC3.ToolTip.visible: hovered
-                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+            }
+        }
+        TransportButton {
+            size: tr.size
+            onArt: tr.onArt
+            iconName: "media-skip-forward"
+            enabled: root.ready && root.player.canGoNext
+            onClicked: root.player.Next()
+        }
+    }
+
+    component SeekBar: Item {
+        implicitHeight: Math.max(4, Kirigami.Units.gridUnit * 0.25)
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: root.style.track
+            Rectangle {
+                width: parent.width * Math.min(1, root.position / Math.max(1, root.length))
+                height: parent.height
+                radius: parent.radius
+                color: root.cAccent
+            }
+        }
+        MouseArea {
+            anchors.fill: parent
+            anchors.margins: -6
+            enabled: root.ready && root.player.canSeek
+            onClicked: function (mouse) { root.player.position = root.length * Math.max(0, Math.min(1, (mouse.x - 6) / (width - 12))) }
+        }
+    }
+
+    // a desktop card: styled surface plus content, with optional text shadow
+    component DeskCard: Item {
+        default property alias content: inner.data
+        readonly property real pad: Math.max(Kirigami.Units.largeSpacing * 1.5, root.style.radius * 0.6)
+        NyxSurface {
+            anchors.fill: parent
+            style: root.style
+        }
+        Item {
+            id: inner
+            anchors.fill: parent
+            layer.enabled: root.style.textShadow > 0
+            layer.effect: NyxTextShadow { style: root.style }
+        }
+    }
+
+    // 0: album: the cover fills the card, title over it, controls at the bottom
+    Component {
+        id: albumCard
+        DeskCard {
+            id: card
+            Art {
+                id: cover
+                anchors.fill: parent
+                anchors.margins: root.style.border > 0 ? 1 : 0
+                radius: Math.max(0, root.style.radius - anchors.margins)
+            }
+            // darken top and bottom so the text stays readable on any cover
+            Rectangle {
+                anchors.fill: cover
+                radius: cover.radius
+                visible: root.artUrl.length > 0
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.55) }
+                    GradientStop { position: 0.35; color: Qt.rgba(0, 0, 0, 0.0) }
+                    GradientStop { position: 0.6; color: Qt.rgba(0, 0, 0, 0.0) }
+                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.6) }
+                }
+            }
+            ColumnLayout {
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: card.pad }
+                spacing: Kirigami.Units.smallSpacing
+                Text {
+                    Layout.fillWidth: true
+                    text: root.title
+                    color: root.artUrl.length > 0 ? "white" : root.cText
+                    font.family: root.style.font || Kirigami.Theme.defaultFont.family
+                    font.pixelSize: Math.min(card.width * 0.13, Kirigami.Units.gridUnit * 2.2)
+                    font.weight: Font.Black
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                    lineHeight: 0.9
+                }
+                Rectangle {
+                    visible: root.artist.length > 0
+                    implicitWidth: Math.min(card.width - card.pad * 2, artistLabel.implicitWidth + Kirigami.Units.largeSpacing * 2)
+                    implicitHeight: artistLabel.implicitHeight + Kirigami.Units.smallSpacing * 1.5
+                    radius: height / 2
+                    color: Qt.rgba(1, 1, 1, 0.18)
+                    Text {
+                        id: artistLabel
+                        anchors.centerIn: parent
+                        width: Math.min(implicitWidth, parent.width - Kirigami.Units.largeSpacing * 2)
+                        text: root.artist
+                        color: root.artUrl.length > 0 ? "white" : root.cText
+                        elide: Text.ElideRight
+                        font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                        font.weight: Font.DemiBold
                     }
                 }
             }
+            ColumnLayout {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: card.pad }
+                spacing: Kirigami.Units.largeSpacing
+                SeekBar { Layout.fillWidth: true; visible: root.ready }
+                Transport {
+                    Layout.alignment: Qt.AlignHCenter
+                    size: Math.min(Kirigami.Units.gridUnit * 2.4, card.width / 6)
+                    onArt: root.artUrl.length > 0
+                }
+            }
+        }
+    }
 
-            // --- now playing ---
+    // 1: wide: cover on the left, title, seek bar and controls on the right
+    Component {
+        id: wideCard
+        DeskCard {
+            id: card
             RowLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.gridUnit
-
-                Item {
-                    id: disc
-                    Layout.preferredWidth: Kirigami.Units.gridUnit * 8
-                    Layout.preferredHeight: Kirigami.Units.gridUnit * 8
-                    Layout.margins: 4
-
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: parent.width + 10
-                        height: width
-                        radius: width / 2
-                        color: "transparent"
-                        border.width: 2
-                        border.color: Qt.alpha(root.cAccent, root.playing ? 0.9 : 0.35)
-                        Behavior on border.color { ColorAnimation { duration: Kirigami.Units.longDuration } }
+                anchors.fill: parent
+                anchors.margins: card.pad * 0.75
+                spacing: card.pad
+                Art {
+                    Layout.preferredHeight: parent.height
+                    Layout.preferredWidth: parent.height
+                    radius: root.style.innerRadius * 1.3
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: Kirigami.Units.smallSpacing
+                    PC3.Label {
+                        Layout.fillWidth: true
+                        text: root.title
+                        font.pixelSize: Math.min(card.height * 0.16, Kirigami.Units.gridUnit * 1.3)
+                        font.bold: true
+                        font.family: root.style.font || Kirigami.Theme.defaultFont.family
+                        elide: Text.ElideRight
                     }
+                    PC3.Label {
+                        Layout.fillWidth: true
+                        visible: root.artist.length > 0
+                        text: root.artist + (root.source.length > 0 ? "  ·  " + root.source : "")
+                        color: root.style.dim
+                        elide: Text.ElideRight
+                    }
+                    Item { Layout.fillHeight: true }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        PC3.Label { text: root.fmtTime(root.position); font: Kirigami.Theme.smallFont; color: root.style.dim }
+                        SeekBar { Layout.fillWidth: true }
+                        PC3.Label { text: root.fmtTime(root.length); font: Kirigami.Theme.smallFont; color: root.style.dim }
+                    }
+                    Transport {
+                        Layout.alignment: Qt.AlignLeft
+                        size: Math.min(Kirigami.Units.gridUnit * 2, card.height * 0.22)
+                    }
+                }
+            }
+        }
+    }
 
+    // 2: vinyl: the spinning record with title and controls under it
+    Component {
+        id: vinylCard
+        DeskCard {
+            id: card
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: card.pad
+                spacing: Kirigami.Units.largeSpacing
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                     Item {
-                        id: spinner
-                        anchors.fill: parent
-                        Image {
-                            id: discArt
-                            anchors.fill: parent
-                            source: root.artUrl
-                            fillMode: Image.PreserveAspectCrop
-                            sourceSize.width: 300
-                            visible: false
-                        }
-                        Rectangle {
-                            id: discMask
-                            anchors.fill: parent
-                            radius: width / 2
-                            visible: false
-                            layer.enabled: true
-                        }
+                        id: record
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width, parent.height)
+                        height: width
                         Rectangle {
                             anchors.fill: parent
                             radius: width / 2
-                            color: Qt.alpha(root.cText, 0.08)
-                            visible: root.artUrl.length === 0
-                            Kirigami.Icon {
-                                anchors.centerIn: parent
-                                width: Kirigami.Units.iconSizes.large
-                                height: width
-                                source: "media-default-album"
-                            }
+                            color: "#111"
                         }
-                        MultiEffect {
+                        Art {
                             anchors.fill: parent
-                            source: discArt
-                            maskEnabled: true
-                            maskSource: discMask
-                            visible: root.artUrl.length > 0
+                            anchors.margins: parent.width * 0.04
+                            radius: width / 2
                         }
-                        // vinyl grooves
                         Repeater {
-                            model: 3
+                            model: 4
                             Rectangle {
                                 required property int index
                                 anchors.centerIn: parent
-                                width: spinner.width * (0.45 + index * 0.17)
+                                width: record.width * (0.4 + index * 0.17)
                                 height: width
                                 radius: width / 2
                                 color: "transparent"
                                 border.width: 1
-                                border.color: Qt.rgba(0, 0, 0, 0.18)
+                                border.color: Qt.rgba(0, 0, 0, 0.22)
                             }
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width * 0.16
+                            height: width
+                            radius: width / 2
+                            color: "#111"
+                            border.width: 2
+                            border.color: root.cAccent
                         }
                         NumberAnimation on rotation {
                             from: 0; to: 360
@@ -480,169 +1058,163 @@ PlasmoidItem {
                             paused: !root.playing
                         }
                     }
-                    // spindle hole
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: parent.width * 0.18
-                        height: width
-                        radius: width / 2
-                        color: root.cBg
-                        border.width: 2
-                        border.color: Qt.alpha(root.cAccent, 0.8)
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: Kirigami.Units.smallSpacing
-
-                    Kirigami.Heading {
-                        Layout.fillWidth: true
-                        level: 3
-                        text: root.title
-                        elide: Text.ElideRight
-                        maximumLineCount: 2
-                        wrapMode: Text.Wrap
-                    }
-                    PC3.Label {
-                        Layout.fillWidth: true
-                        visible: root.artist.length > 0
-                        text: "by " + root.artist
-                        opacity: 0.75
-                        elide: Text.ElideRight
-                    }
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: Kirigami.Units.smallSpacing
-                        Chip { visible: root.sinkName.length > 0; icon: "audio-headphones"; text: root.sinkName.replace(/ Analog Stereo$/, "") }
-                        Chip { visible: root.source.length > 0; text: "via " + root.source }
-                    }
-
-                    PC3.Slider {
-                        id: seek
-                        Layout.fillWidth: true
-                        from: 0
-                        to: Math.max(1, root.length)
-                        value: pressed ? value : root.position
-                        enabled: root.ready && root.player.canSeek
-                        onPressedChanged: if (!pressed) root.player.position = value
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: -Kirigami.Units.smallSpacing
-                        PC3.Label { text: root.fmtTime(seek.pressed ? seek.value : root.position); font: Kirigami.Theme.smallFont; opacity: 0.7 }
-                        Item { Layout.fillWidth: true }
-                        PC3.Label { text: root.fmtTime(root.length); font: Kirigami.Theme.smallFont; opacity: 0.7 }
-                    }
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: Kirigami.Units.largeSpacing
-                        PC3.ToolButton {
-                            icon.name: "media-skip-backward"
-                            enabled: root.ready && root.player.canGoPrevious
-                            onClicked: root.player.Previous()
-                        }
-                        PC3.RoundButton {
-                            icon.name: root.playing ? "media-playback-pause" : "media-playback-start"
-                            icon.width: Kirigami.Units.iconSizes.medium
-                            icon.height: Kirigami.Units.iconSizes.medium
-                            highlighted: true
-                            enabled: root.ready
-                            onClicked: root.player.PlayPause()
-                        }
-                        PC3.ToolButton {
-                            icon.name: "media-skip-forward"
-                            enabled: root.ready && root.player.canGoNext
-                            onClicked: root.player.Next()
-                        }
-                    }
-                }
-            }
-
-            Kirigami.Separator { Layout.fillWidth: true }
-
-            // --- Easy Effects ---
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Kirigami.Units.smallSpacing
-                Kirigami.Icon {
-                    source: "com.github.wwmm.easyeffects"
-                    Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
-                    Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
-                }
-                Kirigami.Heading {
-                    level: 4
-                    text: "Easy Effects"
                 }
                 PC3.Label {
                     Layout.fillWidth: true
-                    Layout.leftMargin: Kirigami.Units.smallSpacing
-                    text: !root.eeRunning ? "not running"
-                        : (root.eeOn ? root.eeCurrent : "bypassed")
-                    color: root.eeOn && root.eeRunning ? root.cAccent : root.cMuted
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.title
+                    font.bold: true
+                    font.pixelSize: Kirigami.Units.gridUnit * 1.05
+                    font.family: root.style.font || Kirigami.Theme.defaultFont.family
                     elide: Text.ElideRight
                 }
-                PC3.Switch {
-                    checked: root.eeOn && root.eeRunning
-                    onToggled: root.setEffects(checked)
-                    PC3.ToolTip.text: checked ? "Turn effects off (bypass)" : "Turn effects on"
-                    PC3.ToolTip.visible: hovered
-                    PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                PC3.Label {
+                    Layout.fillWidth: true
+                    Layout.topMargin: -Kirigami.Units.smallSpacing
+                    visible: root.artist.length > 0
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.artist
+                    color: root.style.dim
+                    elide: Text.ElideRight
                 }
-                PC3.ToolButton {
-                    icon.name: "configure"
-                    onClicked: exec.run("bash '" + root.helper + "' open")
-                    PC3.ToolTip.text: "Open Easy Effects"
-                    PC3.ToolTip.visible: hovered
-                    PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+                Transport {
+                    Layout.alignment: Qt.AlignHCenter
+                    size: Math.min(Kirigami.Units.gridUnit * 2.2, card.width / 6)
                 }
             }
+        }
+    }
 
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 4
-                rowSpacing: Kirigami.Units.smallSpacing
-                columnSpacing: Kirigami.Units.smallSpacing
-                enabled: root.eeOn
-                opacity: enabled ? 1 : 0.5
-                Repeater {
-                    model: root.eeGroups
-                    PC3.Button {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.preferredWidth: 1   // equal columns
-                        text: modelData.label
-                        checkable: true
-                        checked: root.currentGroup !== null && root.currentGroup.base === modelData.base
-                        onClicked: {
-                            checked = Qt.binding(function () { return root.currentGroup !== null && root.currentGroup.base === modelData.base })
-                            root.loadPreset(root.presetFor(modelData))
-                        }
-                        PC3.ToolTip.text: modelData.base
-                        PC3.ToolTip.visible: hovered && contentItem.truncated === true
-                        PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
+    // 3: effects: the Easy Effects preset, its effects, and quick switching
+    Component {
+        id: effectsCard
+        DeskCard {
+            id: card
+            component Pill: Rectangle {
+                property alias text: pillLabel.text
+                property string icon
+                implicitWidth: pillRow.implicitWidth + Kirigami.Units.largeSpacing * 1.5
+                implicitHeight: pillLabel.implicitHeight + Kirigami.Units.smallSpacing * 1.5
+                radius: height / 2
+                color: root.style.card
+                border.color: root.style.cardEdge
+                RowLayout {
+                    id: pillRow
+                    anchors.centerIn: parent
+                    spacing: Kirigami.Units.smallSpacing
+                    Kirigami.Icon {
+                        visible: parent.parent.icon.length > 0
+                        source: parent.parent.icon
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.small - 4
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.small - 4
+                    }
+                    PC3.Label {
+                        id: pillLabel
+                        font: Kirigami.Theme.smallFont
+                        color: root.style.dim
                     }
                 }
             }
-
-            RowLayout {
-                Layout.fillWidth: true
-                visible: root.currentGroup !== null && !!root.currentGroup.variants.min && !!root.currentGroup.variants.max
-                enabled: root.eeOn
-                PC3.Label { text: "Intensity"; opacity: 0.75 }
-                Item { Layout.fillWidth: true }
-                Repeater {
-                    model: ["min", "max"]
-                    PC3.Button {
-                        required property string modelData
-                        text: modelData === "min" ? "Min" : "Max"
-                        checkable: true
-                        checked: root.currentVariant === modelData
-                        onClicked: {
-                            checked = Qt.binding(function () { return root.currentVariant === modelData })
-                            root.cfg.variant = modelData
-                            root.loadPreset(root.currentGroup.variants[modelData])
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: card.pad
+                spacing: Kirigami.Units.largeSpacing
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    Pill { visible: root.sinkName.length > 0; icon: "audio-headphones"; text: root.sinkName.replace(/ Analog Stereo$/, "") }
+                    Pill { text: !root.eeRunning ? "Not running" : (root.eeOn ? (root.playing ? "Playing now" : "Ready") : "Bypassed") }
+                }
+                // big icon badge; arrows step through presets
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    PC3.ToolButton {
+                        icon.name: "go-previous"
+                        enabled: root.eeGroups.length > 1
+                        onClicked: root.stepPreset(-1)
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, parent.height) * 0.8
+                            height: width
+                            radius: width * 0.3
+                            rotation: 45
+                            color: root.eeOn && root.eeRunning ? root.cAccent : root.style.card
+                            Behavior on color { ColorAnimation { duration: Kirigami.Units.longDuration } }
+                        }
+                        Kirigami.Icon {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, parent.height) * 0.4
+                            height: width
+                            source: "audio-volume-high"
+                            isMask: true
+                            color: root.eeOn && root.eeRunning ? root.style.onAccent : root.cText
+                        }
+                    }
+                    PC3.ToolButton {
+                        icon.name: "go-next"
+                        enabled: root.eeGroups.length > 1
+                        onClicked: root.stepPreset(1)
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: root.currentGroup ? root.currentGroup.label : (root.eeCurrent || "No preset")
+                    color: root.cText
+                    font.family: root.style.font || Kirigami.Theme.defaultFont.family
+                    font.pixelSize: Math.min(card.width * 0.13, Kirigami.Units.gridUnit * 2)
+                    font.weight: Font.Black
+                    elide: Text.ElideRight
+                }
+                Flow {
+                    Layout.fillWidth: true
+                    visible: root.eeEffects.length > 0
+                    spacing: Kirigami.Units.smallSpacing
+                    Repeater {
+                        model: root.eeEffects.slice(0, 6)
+                        Pill { required property string modelData; text: root.effectLabel(modelData) }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+                    PC3.AbstractButton {
+                        id: editButton
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 1.9
+                        hoverEnabled: true
+                        onClicked: exec.run("bash '" + root.helper + "' open")
+                        background: Rectangle {
+                            radius: height / 2
+                            color: editButton.hovered ? Qt.lighter(root.cAccent, 1.12) : root.cAccent
+                        }
+                        contentItem: PC3.Label {
+                            text: "Edit effects"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: root.style.onAccent
+                            font.bold: true
+                        }
+                    }
+                    PC3.AbstractButton {
+                        id: bypassButton
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Kirigami.Units.gridUnit * 1.9
+                        hoverEnabled: true
+                        onClicked: root.setEffects(!root.eeOn)
+                        background: Rectangle {
+                            radius: height / 2
+                            color: !root.eeOn ? root.style.active : (bypassButton.hovered ? root.style.cardHover : root.style.card)
+                            border.color: !root.eeOn ? root.style.activeEdge : root.style.cardEdge
+                        }
+                        contentItem: PC3.Label {
+                            text: root.eeOn ? "Bypass" : "Bypassed"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                         }
                     }
                 }
