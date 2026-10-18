@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Easy Effects bridge for the Nyx Player plasmoid.
-#   ee.sh state        presets / current preset / bypass / output device, one key=value per line
+#   ee.sh state        presets / current preset / its effects / bypass / output device, one key=value per line
 #   ee.sh load NAME    load an output preset
 #   ee.sh bypass 1|2   1 = bypass (effects off), 2 = effects on
 #   ee.sh open         show the Easy Effects window
@@ -15,7 +15,12 @@ start() { running || { setsid easyeffects --service-mode --hide-window >/dev/nul
 case "${1:-}" in
     state)
         for f in "$PRESETS"/*.json; do [ -e "$f" ] && { n=${f##*/}; echo "preset=${n%.json}"; }; done
-        echo "current=$(sed -n 's/^lastLoadedOutputPreset=//p' "$RC" 2>/dev/null)"
+        cur=$(sed -n 's/^lastLoadedOutputPreset=//p' "$RC" 2>/dev/null)
+        echo "current=$cur"
+        # effects in the current preset, in order ("bass_enhancer#0" -> "bass_enhancer")
+        [ -n "$cur" ] && [ -e "$PRESETS/$cur.json" ] && tr -d ' \n' < "$PRESETS/$cur.json" \
+            | sed -n 's/.*"plugins_order":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' | sed 's/#.*//; /^$/d; s/^/effect=/'
+        echo
         if running; then echo "running=1"; echo "bypass=$(easyeffects -b 3 2>/dev/null)"; else echo "running=0"; fi
         echo "sink=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | sed -n 's/.*node.description = "\(.*\)"/\1/p' | head -1)"
         ;;

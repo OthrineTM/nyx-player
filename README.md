@@ -4,13 +4,13 @@ A KDE Plasma 6 panel music player with a spinning vinyl cover and an [Easy Effec
 
 ![Nyx Player popup with a song playing and the Easy Effects presets](screenshots/popup.png)
 
-All colors come from your active Plasma theme, so it matches whatever theme you use.
+By default colors come from your active Plasma theme, with the accent taken from the album art. The **Style** page switches it to one of the shared Nyx looks, the same ones [Nyx Clock](https://github.com/OthrineTM/nyx-clock) and [Nyx Control](https://github.com/OthrineTM/nyx-control) use; with sharing on, a look applied in one widget is used by all of them.
 
 ## Features
 
-- **Panel view:** cover art, title, elapsed / total time, and previous / play / next buttons
+- **Panel view:** cover art, title, elapsed / total time, and previous / play / next buttons. Show all of it, just cover and title, or just cover and controls.
 - **Popup:**
-  - spinning vinyl-style cover
+  - spinning vinyl-style cover, or a square or round one
   - title, artist, the audio output in use, and the app that's playing
   - seek bar and playback controls
   - a player switcher: stay on Auto, or pick one player by hand when several are open
@@ -18,6 +18,9 @@ All colors come from your active Plasma theme, so it matches whatever theme you 
   - every output preset as a button
   - one on/off switch for all effects
   - a button that opens the Easy Effects window
+- **Desktop cards:** drag the player onto the desktop for a card: **Album** (the cover fills the card, like a phone widget), **Wide**, **Vinyl**, or **Easy Effects** (the current preset, its effects, quick preset switching, Edit effects and Bypass). Right-click and choose **Next Card** to switch.
+- **Album art colors:** the accent color follows the cover of what's playing. Turn it off in the settings.
+- **Styles:** the shared Nyx looks (Glass, Frost, Smoke, Solid, Light, Neon, Clear, Theme), tweakable, with your own saved presets.
 - **Phone players:** media from your phone through KDE Connect ranks below this computer's players. Turn this off with *Prefer This Computer's Players* in the right-click menu.
 - **Preset intensity:** presets named `name-min` / `name-max` are grouped into one button, with an Intensity toggle between the two
 
