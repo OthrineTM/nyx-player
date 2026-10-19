@@ -6,9 +6,10 @@ MultiEffect {
     required property var style
     shadowEnabled: true
     shadowColor: style.textShadowColor
-    shadowOpacity: Math.min(1, style.textShadow * 1.2)
-    shadowBlur: 0.5
-    blurMax: 16
+    // stronger shadows also spread wider, so small text gets a dark halo on bright wallpapers
+    shadowOpacity: Math.min(1, style.textShadow * 1.25)
+    shadowBlur: 0.35 + style.textShadow * 0.4
+    blurMax: 20
     shadowHorizontalOffset: 0
     shadowVerticalOffset: 1
 }
