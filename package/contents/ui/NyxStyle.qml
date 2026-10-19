@@ -96,7 +96,8 @@ QtObject {
     readonly property color subBase: look.subText ? look.subText : text
     readonly property real subStrength: Math.max(0.2, Math.min(100, look.subStrength === undefined ? 75 : look.subStrength) / 100)
     readonly property color dim: Qt.alpha(subBase, autoContrast && onWallpaper ? Math.max(0.96, subStrength) : subStrength)
-    readonly property color faint: Qt.alpha(subBase, autoContrast && onWallpaper ? Math.max(0.86, subStrength * 0.78) : subStrength * 0.78)
+    // faint text fades faster than secondary text, but reaches full strength at 100 too
+    readonly property color faint: Qt.alpha(subBase, autoContrast && onWallpaper ? Math.max(0.86, subStrength * subStrength) : subStrength * subStrength)
     // inner cards, buttons and tiles sit on any surface, so they are tinted with the text color
     readonly property color card: Qt.alpha(text, 0.06)
     readonly property color cardHover: Qt.alpha(text, 0.11)
