@@ -124,6 +124,31 @@ KCM.SimpleKCM {
         }
     }
 
+    // a font picker that shows every font name in that font
+    component FontCombo: QQC2.ComboBox {
+        id: fc
+        property string value
+        property string emptyText
+        signal picked(string family)
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+        displayText: value === "" ? emptyText : value
+        currentIndex: Math.max(0, model.indexOf(value))
+        onActivated: function (i) { fc.picked(model[i]) }
+        font.family: value || Kirigami.Theme.defaultFont.family
+        delegate: QQC2.ItemDelegate {
+            required property var modelData
+            required property int index
+            width: ListView.view ? ListView.view.width : implicitWidth
+            highlighted: fc.highlightedIndex === index
+            contentItem: QQC2.Label {
+                text: modelData === "" ? fc.emptyText : modelData
+                font.family: modelData || Kirigami.Theme.defaultFont.family
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+    }
+
     component Tweak: RowLayout {
         id: tw
         property alias from: sl.from
@@ -376,13 +401,12 @@ KCM.SimpleKCM {
             opacity: 0.7
             text: "Swaps text that would blend into the background for dark or light text, and keeps text on the wallpaper strong. Turn it off to use exactly the colors above."
         }
-        QQC2.ComboBox {
+        FontCombo {
             Kirigami.FormData.label: "Font:"
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 14
             model: [""].concat(Qt.fontFamilies())
-            displayText: page.cfg_styleFont === "" ? "Theme font" : page.cfg_styleFont
-            currentIndex: Math.max(0, model.indexOf(page.cfg_styleFont))
-            onActivated: function (i) { page.tweak("styleFont", model[i]) }
+            value: page.cfg_styleFont
+            emptyText: "Theme font"
+            onPicked: f => page.tweak("styleFont", f)
         }
         Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Form" }
 
@@ -397,13 +421,12 @@ KCM.SimpleKCM {
         }
         Tweak { Kirigami.FormData.label: "Spacing:"; from: 0; to: 100; suffix: ""; value: page.cfg_styleSpace; onMoved: v => page.tweak("styleSpace", v) }
         Tweak { Kirigami.FormData.label: "Number weight:"; from: 0; to: 100; suffix: ""; value: page.cfg_styleWeight; onMoved: v => page.tweak("styleWeight", v) }
-        QQC2.ComboBox {
+        FontCombo {
             Kirigami.FormData.label: "Number font:"
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 14
             model: ["", "monospace"].concat(Qt.fontFamilies())
-            displayText: page.cfg_styleNumFont === "" ? "Same as the text" : page.cfg_styleNumFont
-            currentIndex: Math.max(0, model.indexOf(page.cfg_styleNumFont))
-            onActivated: function (i) { page.tweak("styleNumFont", model[i]) }
+            value: page.cfg_styleNumFont
+            emptyText: "Same as the text"
+            onPicked: f => page.tweak("styleNumFont", f)
         }
         QQC2.CheckBox {
             text: "Labels in capitals"

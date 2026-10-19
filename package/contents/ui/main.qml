@@ -825,6 +825,9 @@ PlasmoidItem {
         id: art
         property real radius: 0
         property bool showPlaceholder: true
+        // a click on the cover brings the playing app to the front
+        TapHandler { enabled: !!root.player && !!root.player.canRaise; onTapped: root.player.Raise() }
+        HoverHandler { enabled: !!root.player && !!root.player.canRaise; cursorShape: Qt.PointingHandCursor }
         Image {
             id: artImage
             anchors.fill: parent
