@@ -45,5 +45,9 @@
     <entry name="styleCaps" type="Bool"><default>false</default></entry>
     <entry name="styleNumFont" type="String"><default></default></entry>
     <entry name="styleMotion" type="Int"><default>30</default></entry>
+    <!-- text: secondary color ("" = text color), its strength, automatic readability fixes -->
+    <entry name="styleSubText" type="String"><default></default></entry>
+    <entry name="styleSubStrength" type="Int"><default>70</default></entry>
+    <entry name="styleAutoContrast" type="Bool"><default>false</default></entry>
   </group>
 </kcfg>

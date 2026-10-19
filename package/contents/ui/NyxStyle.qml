@@ -36,8 +36,8 @@ QtObject {
     readonly property color wantedText: onPlasmaBackground ? themeText
                                         : look.text ? look.text : (opacity < 0.3 ? "#ffffff" : themeText)
     readonly property color baseAccent: accentOverride.a > 0 ? accentOverride : (look.accent ? look.accent : themeAccent)
-    // straight on the wallpaper the accent is lifted toward white, so accent text and marks don't sink into it
-    readonly property color accent: onWallpaper && !darkText ? Qt.tint(baseAccent, Qt.rgba(1, 1, 1, 0.45)) : baseAccent
+    // with automatic fixes on, an accent straight on the wallpaper is lifted toward white so it doesn't sink into it
+    readonly property color accent: autoContrast && onWallpaper && !darkText ? Qt.tint(baseAccent, Qt.rgba(1, 1, 1, 0.45)) : baseAccent
     // an empty tint follows the Plasma theme's background, so the Theme look matches the color scheme
     readonly property color tint: look.tint ? look.tint : themeBackground
     readonly property real opacity: Math.max(0, Math.min(100, look.opacity)) / 100
@@ -48,8 +48,8 @@ QtObject {
     readonly property real sheen: Math.max(0, Math.min(100, look.sheen)) / 100
     readonly property real shadow: Math.max(0, Math.min(100, look.shadow)) / 100
     readonly property real glow: Math.max(0, Math.min(100, look.glow)) / 100
-    // see-through looks put text straight on the wallpaper, so they always keep a little shadow
-    readonly property real textShadow: Math.max(onWallpaper ? 0.85 : 0, Math.min(100, look.textShadow || 0) / 100)
+    // with automatic fixes on, text straight on the wallpaper always keeps a strong shadow
+    readonly property real textShadow: Math.max(autoContrast && onWallpaper ? 0.85 : 0, Math.min(100, look.textShadow || 0) / 100)
     // dark text gets a light halo instead of a dark shadow
     readonly property bool darkText: luminance(text) < 0.5
     readonly property color textShadowColor: darkText ? "white" : "black"
@@ -76,24 +76,27 @@ QtObject {
     // the wallpaper shows through enough that text needs its own help (shadow, stronger colors)
     readonly property bool onWallpaper: opacity < 0.45 && !onPlasmaBackground
 
-    // Readable text whatever the look and color scheme: on a surface that hides the wallpaper,
-    // a text color too close to the surface (white text on Light, dark theme text on a pale
-    // tint...) is swapped for near-black or near-white, whichever reads better.
+    // With automatic fixes on, on a surface that hides the wallpaper, a text color too close to the
+    // surface (white text on Light, dark theme text on a pale tint...) is swapped for near-black or
+    // near-white, whichever reads better.
     readonly property color backdrop: Qt.rgba(tint.r * opacity + 0.2 * (1 - opacity),
                                               tint.g * opacity + 0.2 * (1 - opacity),
                                               tint.b * opacity + 0.2 * (1 - opacity), 1)
+    // the person's choice: fix hard-to-read colors automatically, or use exactly the colors they picked
+    readonly property bool autoContrast: !!look.autoContrast
     readonly property color text: readable(wantedText, 4.5)
     // the same check for any color a widget picks itself (custom clock colors, glows): returns
-    // it unchanged unless it would be hard to read on this look's surface
+    // it unchanged unless automatic fixes are on and it would be hard to read on this look's surface
     function readable(c, minRatio) {
-        if (onPlasmaBackground || opacity < 0.45 || contrast(c, backdrop) >= (minRatio || 3)) return c
+        if (!autoContrast || onPlasmaBackground || opacity < 0.45 || contrast(c, backdrop) >= (minRatio || 3)) return c
         return contrast("#16141c", backdrop) >= contrast("#f6f4fa", backdrop) ? "#16141c" : "#f6f4fa"
     }
-    // secondary text: stronger when the wallpaper shows through, since small faded text on a busy
-    // wallpaper is the first thing to become unreadable
-    // when the wallpaper shows through, secondary text stays nearly opaque: the wallpaper behind it can be anything
-    readonly property color dim: Qt.alpha(text, onWallpaper ? 0.96 : 0.76)
-    readonly property color faint: Qt.alpha(text, onWallpaper ? 0.86 : 0.58)
+    // secondary text (dates, units, captions) and the faintest text (weekends, tick marks), in the
+    // look's secondary color at the look's strength; automatic fixes keep it strong on the wallpaper
+    readonly property color subBase: look.subText ? look.subText : text
+    readonly property real subStrength: Math.max(0.2, Math.min(100, look.subStrength === undefined ? 75 : look.subStrength) / 100)
+    readonly property color dim: Qt.alpha(subBase, autoContrast && onWallpaper ? Math.max(0.96, subStrength) : subStrength)
+    readonly property color faint: Qt.alpha(subBase, autoContrast && onWallpaper ? Math.max(0.86, subStrength * 0.78) : subStrength * 0.78)
     // inner cards, buttons and tiles sit on any surface, so they are tinted with the text color
     readonly property color card: Qt.alpha(text, 0.06)
     readonly property color cardHover: Qt.alpha(text, 0.11)

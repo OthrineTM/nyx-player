@@ -31,6 +31,9 @@ KCM.SimpleKCM {
     property bool cfg_styleCaps
     property string cfg_styleNumFont
     property int cfg_styleMotion
+    property string cfg_styleSubText
+    property int cfg_styleSubStrength
+    property bool cfg_styleAutoContrast
 
     property var userPresets: []
 
@@ -42,7 +45,8 @@ KCM.SimpleKCM {
         styleGlow: cfg_styleGlow, styleTextShadow: cfg_styleTextShadow, styleText: cfg_styleText,
         styleAccent: cfg_styleAccent, styleFont: cfg_styleFont,
         styleCard: cfg_styleCard, styleSpace: cfg_styleSpace, styleWeight: cfg_styleWeight,
-        styleCaps: cfg_styleCaps, styleNumFont: cfg_styleNumFont, styleMotion: cfg_styleMotion
+        styleCaps: cfg_styleCaps, styleNumFont: cfg_styleNumFont, styleMotion: cfg_styleMotion,
+        styleSubText: cfg_styleSubText, styleSubStrength: cfg_styleSubStrength, styleAutoContrast: cfg_styleAutoContrast
     })
 
     function loadLook(l) {
@@ -101,9 +105,10 @@ KCM.SimpleKCM {
         id: tc
         property string value
         property color fallback
+        property string resetText: "Theme"
         signal picked(string c)
         QQC2.CheckBox {
-            text: "Theme"
+            text: tc.resetText
             checked: tc.value === ""
             onToggled: tc.picked(checked ? "" : tc.fallback.toString())
         }
@@ -327,7 +332,33 @@ KCM.SimpleKCM {
             fallback: Kirigami.Theme.highlightColor
             onPicked: c => page.tweak("styleAccent", c)
         }
+        ThemedColor {
+            Kirigami.FormData.label: "Secondary text:"
+            resetText: "Same as text"
+            value: page.cfg_styleSubText
+            fallback: page.cfg_styleText !== "" ? page.cfg_styleText : Kirigami.Theme.textColor
+            onPicked: c => page.tweak("styleSubText", c)
+        }
+        Tweak {
+            Kirigami.FormData.label: "Secondary text strength:"
+            from: 20; to: 100
+            value: page.cfg_styleSubStrength
+            onMoved: v => page.tweak("styleSubStrength", v)
+        }
         Tweak { Kirigami.FormData.label: "Text shadow:"; from: 0; to: 100; value: page.cfg_styleTextShadow; onMoved: v => page.tweak("styleTextShadow", v) }
+        QQC2.CheckBox {
+            Kirigami.FormData.label: "Readability:"
+            text: "Fix hard-to-read colors automatically"
+            checked: page.cfg_styleAutoContrast
+            onToggled: page.tweak("styleAutoContrast", checked)
+        }
+        QQC2.Label {
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 18
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            opacity: 0.7
+            text: "Swaps text that would blend into the background for dark or light text, and keeps text on the wallpaper strong. Turn it off to use exactly the colors above."
+        }
         QQC2.ComboBox {
             Kirigami.FormData.label: "Font:"
             Layout.preferredWidth: Kirigami.Units.gridUnit * 14
