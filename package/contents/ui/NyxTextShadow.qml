@@ -5,7 +5,7 @@ import QtQuick.Effects
 MultiEffect {
     required property var style
     shadowEnabled: true
-    shadowColor: "black"
+    shadowColor: style.textShadowColor
     shadowOpacity: Math.min(1, style.textShadow * 1.2)
     shadowBlur: 0.5
     blurMax: 16

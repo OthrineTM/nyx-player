@@ -22,6 +22,8 @@ PlasmoidItem {
         themeText: root.themeText
         themeAccent: root.themeAccent
         themeBackground: root.themeBackground
+        // in the panel popup the background is Plasma's, so text keeps the color scheme's colors
+        onPlasmaBackground: !root.onDesktop
         accentOverride: root.cfg.accentFromArt && root.artUrl.length > 0 ? root.artAccent : "transparent"
     }
     Kirigami.ImageColors {

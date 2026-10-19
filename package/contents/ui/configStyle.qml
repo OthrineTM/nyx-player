@@ -25,6 +25,12 @@ KCM.SimpleKCM {
     property string cfg_styleText
     property string cfg_styleAccent
     property string cfg_styleFont
+    property string cfg_styleCard
+    property int cfg_styleSpace
+    property int cfg_styleWeight
+    property bool cfg_styleCaps
+    property string cfg_styleNumFont
+    property int cfg_styleMotion
 
     property var userPresets: []
 
@@ -34,7 +40,9 @@ KCM.SimpleKCM {
         styleOpacity: cfg_styleOpacity, styleBorder: cfg_styleBorder, styleBorderAccent: cfg_styleBorderAccent,
         styleRadius: cfg_styleRadius, styleSheen: cfg_styleSheen, styleShadow: cfg_styleShadow,
         styleGlow: cfg_styleGlow, styleTextShadow: cfg_styleTextShadow, styleText: cfg_styleText,
-        styleAccent: cfg_styleAccent, styleFont: cfg_styleFont
+        styleAccent: cfg_styleAccent, styleFont: cfg_styleFont,
+        styleCard: cfg_styleCard, styleSpace: cfg_styleSpace, styleWeight: cfg_styleWeight,
+        styleCaps: cfg_styleCaps, styleNumFont: cfg_styleNumFont, styleMotion: cfg_styleMotion
     })
 
     function loadLook(l) {
@@ -180,26 +188,46 @@ KCM.SimpleKCM {
                 layer.enabled: preview.textShadow > 0
                 layer.effect: NyxTextShadow { style: preview }
                 Text {
+                    text: preview.label(preview.presetName)
+                    color: preview.faint
+                    font.family: preview.font || Kirigami.Theme.defaultFont.family
+                    font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                    font.weight: preview.labelWeight
+                    font.letterSpacing: Kirigami.Theme.smallFont.pixelSize * preview.tracking
+                }
+                Text {
                     text: Qt.formatTime(new Date(), "hh:mm")
                     color: preview.text
-                    font.family: preview.font || Kirigami.Theme.defaultFont.family
-                    font.pixelSize: sample.height * 0.38
-                    font.weight: Font.DemiBold
+                    font.family: preview.numberFont || Kirigami.Theme.defaultFont.family
+                    font.pixelSize: sample.height * 0.34
+                    font.weight: preview.numberWeight
                 }
                 RowLayout {
-                    Text {
-                        Layout.fillWidth: true
-                        text: preview.presetName
-                        color: preview.dim
-                        font.family: preview.font || Kirigami.Theme.defaultFont.family
-                    }
-                    Rectangle {
-                        implicitWidth: Kirigami.Units.gridUnit * 3.5
-                        implicitHeight: Kirigami.Units.gridUnit * 1.4
-                        radius: preview.innerRadius
-                        color: preview.active
-                        border.color: preview.activeEdge
-                        Text { anchors.centerIn: parent; text: "Accent"; color: preview.text; font.pixelSize: Kirigami.Theme.smallFont.pixelSize }
+                    spacing: Kirigami.Units.smallSpacing * preview.space
+                    Repeater {
+                        model: ["Mon", "Tue", "Wed"]
+                        Item {
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth: true
+                            implicitHeight: Kirigami.Units.gridUnit * 1.4
+                            HoverHandler { id: chipHover }
+                            NyxCard {
+                                anchors.fill: parent
+                                style: preview
+                                hovered: chipHover.hovered
+                                highlighted: parent.index === 0
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                text: preview.label(parent.modelData)
+                                color: preview.text
+                                font.family: preview.font || Kirigami.Theme.defaultFont.family
+                                font.pixelSize: Kirigami.Theme.smallFont.pixelSize
+                                font.weight: preview.labelWeight
+                                font.letterSpacing: Kirigami.Theme.smallFont.pixelSize * preview.tracking
+                            }
+                        }
                     }
                 }
             }
@@ -308,6 +336,34 @@ KCM.SimpleKCM {
             currentIndex: Math.max(0, model.indexOf(page.cfg_styleFont))
             onActivated: function (i) { page.tweak("styleFont", model[i]) }
         }
+        Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Form" }
+
+        QQC2.ComboBox {
+            Kirigami.FormData.label: "Cards and rows:"
+            textRole: "text"
+            valueRole: "value"
+            model: [{ text: "Filled boxes", value: "filled" }, { text: "Outlines", value: "outline" },
+                    { text: "No boxes, thin dividers", value: "plain" }]
+            currentIndex: Math.max(0, indexOfValue(page.cfg_styleCard))
+            onActivated: page.tweak("styleCard", currentValue)
+        }
+        Tweak { Kirigami.FormData.label: "Spacing:"; from: 0; to: 100; suffix: ""; value: page.cfg_styleSpace; onMoved: v => page.tweak("styleSpace", v) }
+        Tweak { Kirigami.FormData.label: "Number weight:"; from: 0; to: 100; suffix: ""; value: page.cfg_styleWeight; onMoved: v => page.tweak("styleWeight", v) }
+        QQC2.ComboBox {
+            Kirigami.FormData.label: "Number font:"
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 14
+            model: ["", "monospace"].concat(Qt.fontFamilies())
+            displayText: page.cfg_styleNumFont === "" ? "Same as the text" : page.cfg_styleNumFont
+            currentIndex: Math.max(0, model.indexOf(page.cfg_styleNumFont))
+            onActivated: function (i) { page.tweak("styleNumFont", model[i]) }
+        }
+        QQC2.CheckBox {
+            text: "Labels in capitals"
+            checked: page.cfg_styleCaps
+            onToggled: page.tweak("styleCaps", checked)
+        }
+        Tweak { Kirigami.FormData.label: "Motion:"; from: 0; to: 100; suffix: ""; value: page.cfg_styleMotion; onMoved: v => page.tweak("styleMotion", v) }
+
         QQC2.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 24
             wrapMode: Text.WordWrap

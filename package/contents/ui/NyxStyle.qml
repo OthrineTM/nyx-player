@@ -15,20 +15,29 @@ QtObject {
     property color themeBackground: "black"
     // set to override the accent (e.g. colors taken from album art); transparent = none
     property color accentOverride: "transparent"
+    // true where the widget sits on Plasma's own background (a panel popup) instead of a Nyx
+    // surface: text then follows the color scheme, whatever the look says
+    property bool onPlasmaBackground: false
 
     property var shared: null
     readonly property bool sharing: !!cfg.styleShared
     readonly property var localLook: Presets.fromConfig(cfg)
-    readonly property var look: (sharing && shared) ? shared : localLook
+    readonly property var look: (sharing && shared) ? Presets.withDefaults(shared) : localLook
 
     readonly property string preset: look.preset || "custom"
     readonly property string presetName: {
         var p = Presets.find(preset, [])
         return p ? p.name : (preset === "custom" ? "Custom" : preset)
     }
-    readonly property color text: look.text ? look.text : themeText
+    // the text color the look asks for; `text` below is the one actually used
+    // with no surface, theme text would follow the color scheme (dark on Breeze Light) even though
+    // it sits on the wallpaper, so see-through looks default to white text with a shadow instead,
+    // like desktop icon labels
+    readonly property color wantedText: onPlasmaBackground ? themeText
+                                        : look.text ? look.text : (opacity < 0.3 ? "#ffffff" : themeText)
     readonly property color accent: accentOverride.a > 0 ? accentOverride : (look.accent ? look.accent : themeAccent)
-    readonly property color tint: look.tint ? look.tint : themeText
+    // an empty tint follows the Plasma theme's background, so the Theme look matches the color scheme
+    readonly property color tint: look.tint ? look.tint : themeBackground
     readonly property real opacity: Math.max(0, Math.min(100, look.opacity)) / 100
     readonly property real border: Math.max(0, Math.min(100, look.border)) / 100
     readonly property bool borderAccent: !!look.borderAccent
@@ -37,17 +46,49 @@ QtObject {
     readonly property real sheen: Math.max(0, Math.min(100, look.sheen)) / 100
     readonly property real shadow: Math.max(0, Math.min(100, look.shadow)) / 100
     readonly property real glow: Math.max(0, Math.min(100, look.glow)) / 100
-    readonly property real textShadow: Math.max(0, Math.min(100, look.textShadow || 0)) / 100
+    // see-through looks put text straight on the wallpaper, so they always keep a little shadow
+    readonly property real textShadow: Math.max(seeThrough && !onPlasmaBackground ? (darkText ? 0.7 : 0.3) : 0, Math.min(100, look.textShadow || 0) / 100)
+    // dark text gets a light halo instead of a dark shadow
+    readonly property bool darkText: luminance(text) < 0.5
+    readonly property color textShadowColor: darkText ? "white" : "black"
     readonly property string font: look.font || ""
     readonly property bool hasSurface: opacity > 0 || border > 0
+
+    // form: how cards, spacing, type and motion look, so styles differ in more than color
+    readonly property string cardStyle: ["filled", "outline", "plain"].indexOf(look.card) >= 0 ? look.card : "filled"
+    readonly property real space: 0.7 + Math.max(0, Math.min(100, look.space)) / 100 * 0.7      // 0.7 tight - 1.4 airy
+    readonly property int numberWeight: 100 + Math.round(Math.max(0, Math.min(100, look.weight)) / 100 * 8) * 100
+    readonly property int labelWeight: caps ? Font.DemiBold : Font.Medium
+    readonly property bool caps: !!look.caps
+    readonly property real tracking: caps ? 0.1 : 0          // label letter spacing, in em
+    readonly property string numberFont: look.numFont || font
+    readonly property real motion: Math.max(0, Math.min(100, look.motion)) / 100
+    readonly property int motionMs: 90 + Math.round(motion * 230)
+    function label(t) { return caps ? String(t).toUpperCase() : t }
 
     // ready-made colors for widgets
     readonly property color surface: Qt.alpha(tint, opacity)
     readonly property color edge: borderAccent ? Qt.alpha(accent, border) : Qt.alpha(text, border * 0.45)
     // see-through looks put text straight on the wallpaper, so secondary text stays stronger there
     readonly property bool seeThrough: opacity < 0.3
-    readonly property color dim: Qt.alpha(text, seeThrough ? 0.82 : 0.68)
-    readonly property color faint: Qt.alpha(text, seeThrough ? 0.6 : 0.42)
+
+    // Readable text whatever the look and color scheme: on a surface that hides the wallpaper,
+    // a text color too close to the surface (white text on Light, dark theme text on a pale
+    // tint...) is swapped for near-black or near-white, whichever reads better.
+    readonly property color backdrop: Qt.rgba(tint.r * opacity + 0.2 * (1 - opacity),
+                                              tint.g * opacity + 0.2 * (1 - opacity),
+                                              tint.b * opacity + 0.2 * (1 - opacity), 1)
+    readonly property color text: readable(wantedText, 4.5)
+    // the same check for any color a widget picks itself (custom clock colors, glows): returns
+    // it unchanged unless it would be hard to read on this look's surface
+    function readable(c, minRatio) {
+        if (onPlasmaBackground || opacity < 0.45 || contrast(c, backdrop) >= (minRatio || 3)) return c
+        return contrast("#16141c", backdrop) >= contrast("#f6f4fa", backdrop) ? "#16141c" : "#f6f4fa"
+    }
+    // secondary text: stronger when the wallpaper shows through, since small faded text on a busy
+    // wallpaper is the first thing to become unreadable
+    readonly property color dim: Qt.alpha(text, opacity < 0.45 ? 0.88 : 0.7)
+    readonly property color faint: Qt.alpha(text, opacity < 0.45 ? 0.7 : 0.48)
     // inner cards, buttons and tiles sit on any surface, so they are tinted with the text color
     readonly property color card: Qt.alpha(text, 0.06)
     readonly property color cardHover: Qt.alpha(text, 0.11)
@@ -60,6 +101,13 @@ QtObject {
     readonly property color accentInk: luminance(accent) > 0.6 ? "#14121a" : "#ffffff"
 
     function luminance(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
+    // WCAG contrast ratio of two colors, 1 (none) to 21 (black on white)
+    function contrast(a, b) {
+        function lin(v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+        function rel(c) { c = Qt.color(c); return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b) }
+        var la = rel(a), lb = rel(b)
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+    }
 
     // Apply a look (a preset or a full set of values) to this widget, and to all widgets when shared.
     function apply(newLook) {
