@@ -26,14 +26,11 @@ PlasmoidItem {
         onPlasmaBackground: !root.onDesktop
         accentOverride: root.cfg.accentFromArt && root.artUrl.length > 0 ? root.artAccent : "transparent"
     }
-    Kirigami.ImageColors {
-        id: artColors
-        source: root.artUrl
-    }
-    onArtUrlChanged: artColors.update()
+    // set by the ArtProbe in whichever representation is showing (a canvas needs a window to paint)
+    property color artHighlight: "#8a7fb0"
     // the art's most colorful tone, lifted so it reads on dark and light surfaces
-    readonly property color artAccent: Qt.hsla(artColors.highlight.hslHue, Math.max(0.45, artColors.highlight.hslSaturation),
-                                               Math.min(0.72, Math.max(0.5, artColors.highlight.hslLightness)), 1)
+    readonly property color artAccent: Qt.hsla(root.artHighlight.hslHue, Math.max(0.45, root.artHighlight.hslSaturation),
+                                               Math.min(0.72, Math.max(0.5, root.artHighlight.hslLightness)), 1)
     readonly property color cAccent: style.accent
     readonly property color cText: style.text
     readonly property color cMuted: style.faint
@@ -355,6 +352,11 @@ PlasmoidItem {
         Layout.minimumWidth: kind === 2 ? compact.height * 4.2 : root.cfg.compactWidth
         Layout.fillHeight: true
         hoverEnabled: true
+
+        ArtProbe {
+            source: root.cfg.accentFromArt ? root.artUrl : ""
+            onHighlightChanged: root.artHighlight = highlight
+        }
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         onClicked: function (mouse) {
             if (mouse.button === Qt.MiddleButton) root.player?.PlayPause()
@@ -461,6 +463,11 @@ PlasmoidItem {
         Layout.minimumWidth: root.onDesktop ? 150 : Kirigami.Units.gridUnit * 27
         Layout.preferredHeight: root.onDesktop ? [400, 150, 340, 340, 280][root.cfg.deskFace] ?? 400 : (view.item ? view.item.implicitHeight : 0)
         Layout.minimumHeight: root.onDesktop ? 110 : Layout.preferredHeight
+
+        ArtProbe {
+            source: root.cfg.accentFromArt ? root.artUrl : ""
+            onHighlightChanged: root.artHighlight = highlight
+        }
 
         // labels and controls follow the style's colors
         Kirigami.Theme.textColor: root.style.text
