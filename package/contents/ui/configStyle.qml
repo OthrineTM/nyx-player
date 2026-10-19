@@ -149,8 +149,13 @@ KCM.SimpleKCM {
         // ---- live preview ----
         Item {
             Kirigami.FormData.label: "Preview:"
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 22
-            Layout.preferredHeight: Kirigami.Units.gridUnit * 8
+            // FormLayout sizes plain Items by their implicit size, so set it as well as the layout hints
+            implicitWidth: Kirigami.Units.gridUnit * 22
+            implicitHeight: Kirigami.Units.gridUnit * 8
+            Layout.preferredWidth: implicitWidth
+            Layout.preferredHeight: implicitHeight
+            Layout.minimumWidth: implicitWidth
+            Layout.minimumHeight: implicitHeight
 
             // a busy backdrop, so transparency is easy to judge
             Rectangle {
@@ -248,40 +253,52 @@ KCM.SimpleKCM {
         // ---- presets ----
         Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Presets" }
 
-        Flow {
+        Item {
             Kirigami.FormData.label: "Built-in:"
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
-            spacing: Kirigami.Units.smallSpacing
-            Repeater {
-                model: Presets.builtin
-                QQC2.Button {
-                    required property var modelData
-                    text: modelData.name
-                    highlighted: page.cfg_stylePreset === modelData.preset
-                    onClicked: page.loadLook(modelData)
+            // FormLayout sizes items by their implicit size, and a Flow's is one button wide
+            implicitWidth: Kirigami.Units.gridUnit * 26
+            implicitHeight: builtinFlow.implicitHeight
+            Flow {
+                id: builtinFlow
+                width: parent.width
+                spacing: Kirigami.Units.smallSpacing
+                Repeater {
+                    model: Presets.builtin
+                    QQC2.Button {
+                        required property var modelData
+                        text: modelData.name
+                        highlighted: page.cfg_stylePreset === modelData.preset
+                        onClicked: page.loadLook(modelData)
+                    }
                 }
             }
         }
-        Flow {
+        Item {
             Kirigami.FormData.label: "Yours:"
             visible: page.userPresets.length > 0
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
-            spacing: Kirigami.Units.smallSpacing
-            Repeater {
-                model: page.userPresets
-                QQC2.Button {
-                    required property var modelData
-                    text: modelData.name
-                    highlighted: page.cfg_stylePreset === modelData.preset
-                    onClicked: page.loadLook(modelData)
-                    QQC2.ToolButton {
-                        anchors { right: parent.right; top: parent.top; margins: -Kirigami.Units.smallSpacing }
-                        width: Kirigami.Units.iconSizes.small + 4; height: width
-                        icon.name: "edit-delete-remove"
-                        icon.width: Kirigami.Units.iconSizes.small; icon.height: Kirigami.Units.iconSizes.small
-                        onClicked: page.deletePreset(parent.modelData.preset)
-                        QQC2.ToolTip.text: "Delete this preset"
-                        QQC2.ToolTip.visible: hovered
+            // FormLayout sizes items by their implicit size, and a Flow's is one button wide
+            implicitWidth: Kirigami.Units.gridUnit * 26
+            implicitHeight: userFlow.implicitHeight
+            Flow {
+                id: userFlow
+                width: parent.width
+                spacing: Kirigami.Units.smallSpacing
+                Repeater {
+                    model: page.userPresets
+                    QQC2.Button {
+                        required property var modelData
+                        text: modelData.name
+                        highlighted: page.cfg_stylePreset === modelData.preset
+                        onClicked: page.loadLook(modelData)
+                        QQC2.ToolButton {
+                            anchors { right: parent.right; top: parent.top; margins: -Kirigami.Units.smallSpacing }
+                            width: Kirigami.Units.iconSizes.small + 4; height: width
+                            icon.name: "edit-delete-remove"
+                            icon.width: Kirigami.Units.iconSizes.small; icon.height: Kirigami.Units.iconSizes.small
+                            onClicked: page.deletePreset(parent.modelData.preset)
+                            QQC2.ToolTip.text: "Delete this preset"
+                            QQC2.ToolTip.visible: hovered
+                        }
                     }
                 }
             }
