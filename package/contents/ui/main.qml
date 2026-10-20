@@ -474,6 +474,9 @@ PlasmoidItem {
                     anchors.fill: parent
                     source: miniArt
                     maskEnabled: true
+                    // soft cut: a hard 0 threshold leaves stair-stepped edges, worst on the spinning disc
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1.0
                     maskSource: miniMask
                     visible: root.artUrl.length > 0
                 }
@@ -584,6 +587,9 @@ PlasmoidItem {
                 blur: 1.0
                 blurMax: 64
                 maskEnabled: true
+                // soft cut: a hard 0 threshold leaves stair-stepped edges, worst on the spinning disc
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
                 maskSource: bgMask
                 opacity: 0.22
             }
@@ -694,6 +700,9 @@ PlasmoidItem {
                                 anchors.fill: parent
                                 source: discArt
                                 maskEnabled: true
+                                // soft cut: a hard 0 threshold leaves stair-stepped edges, worst on the spinning disc
+                                maskThresholdMin: 0.5
+                                maskSpreadAtMin: 1.0
                                 maskSource: discMask
                                 visible: root.artUrl.length > 0
                             }
@@ -919,6 +928,9 @@ PlasmoidItem {
             anchors.fill: parent
             source: artImage
             maskEnabled: true
+            // soft cut: a hard 0 threshold leaves stair-stepped edges, worst on the spinning disc
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1.0
             maskSource: artMask
             visible: root.artUrl.length > 0
         }
