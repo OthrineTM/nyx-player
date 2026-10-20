@@ -146,7 +146,7 @@ PlasmoidItem {
     readonly property bool vizShown: onDesktop && cfg.deskFace === 4
     readonly property bool vizActive: vizShown && playing
     readonly property int vizBars: Math.max(4, Math.min(64, cfg.visualizerBars))
-    readonly property int vizFps: [15, 25, 30, 60].indexOf(cfg.vizFps) >= 0 ? cfg.vizFps : 25
+    readonly property int vizFps: Math.max(10, Math.min(60, cfg.vizFps || 25))
     // everything cava itself is started with; a change restarts it
     readonly property string vizConf: "framerate = " + vizFps + "\\nbars = " + vizBars
         + "\\nsensitivity = " + Math.max(10, Math.min(300, cfg.vizSens))

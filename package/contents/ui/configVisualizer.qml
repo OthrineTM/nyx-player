@@ -18,12 +18,10 @@ KCM.SimpleKCM {
     property string cfg_vizColor2
     property alias cfg_vizPeaks: peaks.checked
     property alias cfg_vizShowInfo: showInfo.checked
-    property int cfg_vizFps
+    property alias cfg_vizFps: fps.value
     property alias cfg_vizSmooth: smooth.value
     property alias cfg_vizSens: sens.value
     property alias cfg_vizAutoSens: autoSens.checked
-
-    readonly property var fpsChoices: [15, 25, 30, 60]
 
     Kirigami.FormLayout {
         Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Look" }
@@ -80,11 +78,16 @@ KCM.SimpleKCM {
 
         Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Motion" }
 
-        QQC2.ComboBox {
+        RowLayout {
             Kirigami.FormData.label: "Speed:"
-            model: ["15 fps (lightest)", "25 fps", "30 fps", "60 fps (smoothest, more CPU)"]
-            currentIndex: Math.max(0, page.fpsChoices.indexOf(page.cfg_vizFps))
-            onActivated: page.cfg_vizFps = page.fpsChoices[currentIndex]
+            QQC2.Slider { id: fps; from: 10; to: 60; stepSize: 1 }
+            QQC2.Label { text: fps.value + " fps" }
+        }
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: "Higher is smoother but uses more CPU while music plays."
         }
         RowLayout {
             Kirigami.FormData.label: "Smoothing:"
