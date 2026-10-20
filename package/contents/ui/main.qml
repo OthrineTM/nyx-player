@@ -1371,7 +1371,9 @@ PlasmoidItem {
                                     height: Math.max(Math.min(bars.barW * 0.5, 6), parent.height * Math.min(100, root.levels[index] || 0) / 100)
                                     radius: Math.min(width / 2, 3)
                                     color: root.levels.length > 0 ? root.cAccent : root.style.track
-                                    Behavior on height { NumberAnimation { duration: 60 } }
+                                    // no height animation: it would redraw the desktop at the screen's
+                                    // refresh rate (300 Hz) for as long as music plays; cava already
+                                    // smooths the bars, so they only repaint when new levels arrive
                                 }
                             }
                         }
