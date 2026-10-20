@@ -30,8 +30,8 @@
     <entry name="vizColor2" type="String"><default>#f06bd8</default></entry>
     <entry name="vizPeaks" type="Bool"><default>false</default></entry>
     <entry name="vizShowInfo" type="Bool"><default>true</default></entry>
-    <!-- pause the visualizer when windows cover the desktop: 0 never, 1 maximized/fullscreen, 2 any window over the card -->
-    <entry name="vizPause" type="Int"><default>1</default></entry>
+    <!-- pause timers and animations when windows hide the widget: 0 never, 1 maximized/fullscreen, 2 any window over it -->
+    <entry name="pauseWhen" type="Int"><default>1</default></entry>
     <!-- cava: frames per second, smoothing (noise_reduction), sensitivity in %, automatic sensitivity -->
     <entry name="vizFps" type="Int"><default>25</default></entry>
     <entry name="vizSmooth" type="Int"><default>77</default></entry>

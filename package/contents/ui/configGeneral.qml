@@ -9,6 +9,7 @@ KCM.SimpleKCM {
     property alias cfg_compactWidth: compactWidth.value
     property alias cfg_coverStyle: coverStyle.currentIndex
     property alias cfg_deskFace: deskFace.currentIndex
+    property alias cfg_pauseWhen: pauseWhen.currentIndex
     property alias cfg_accentFromArt: accentFromArt.checked
     property alias cfg_preferLocal: preferLocal.checked
 
@@ -44,6 +45,17 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             opacity: 0.7
             text: "Drag the player onto the desktop to use a card. Right-click it and choose Next Card to flip through them. The audio visualizer has its own settings page."
+        }
+        QQC2.ComboBox {
+            id: pauseWhen
+            Kirigami.FormData.label: "Pause when:"
+            model: ["Never", "A maximized or fullscreen window is open", "Any window covers the card"]
+        }
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: "While hidden, the visualizer and the spinning vinyl stop, so the card uses no CPU."
         }
 
         Kirigami.Separator { Kirigami.FormData.isSection: true; Kirigami.FormData.label: "Behavior" }

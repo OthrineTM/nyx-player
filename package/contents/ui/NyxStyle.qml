@@ -21,6 +21,8 @@ QtObject {
 
     property var shared: null
     readonly property bool sharing: !!cfg.styleShared
+    // set while windows hide the widget: stop following the shared look until it shows again
+    property bool paused: false
     readonly property var localLook: Presets.fromConfig(cfg)
     readonly property var look: (sharing && shared) ? Presets.withDefaults(shared) : localLook
 
@@ -178,7 +180,7 @@ QtObject {
     property Timer poll: Timer {
         interval: 3000
         repeat: true
-        running: s.sharing
+        running: s.sharing && !s.paused
         triggeredOnStart: true
         onTriggered: s.exec.run(Presets.readStyleCommand)
     }

@@ -8,7 +8,6 @@ import org.kde.plasma.components as PC3
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.private.mpris as Mpris
 import org.kde.kirigami as Kirigami
-import org.kde.taskmanager as TaskManager
 
 PlasmoidItem {
     id: root
@@ -20,6 +19,7 @@ PlasmoidItem {
     readonly property color themeBackground: Kirigami.Theme.backgroundColor
     property NyxStyle style: NyxStyle {
         cfg: root.cfg
+        paused: cover.covered
         themeText: root.themeText
         themeAccent: root.themeAccent
         themeBackground: root.themeBackground
@@ -145,9 +145,9 @@ PlasmoidItem {
     property bool cavaChecked: false
     property bool cavaLaunched: false
     readonly property bool vizShown: onDesktop && cfg.deskFace === 4
-    // windows can hide the desktop card; then the visualizer pauses (setting vizPause:
-    // 0 never, 1 a maximized or fullscreen window on this screen, 2 any window over the card)
-    property bool vizCovered: false
+    // windows can hide the desktop card; then the visualizer and the vinyl pause
+    NyxCover { id: cover; target: root; mode: root.onDesktop ? root.cfg.pauseWhen : 0 }
+    readonly property bool vizCovered: cover.covered
     readonly property bool vizActive: vizShown && playing && !vizCovered
     readonly property int vizBars: Math.max(4, Math.min(64, cfg.visualizerBars))
     readonly property int vizFps: Math.max(10, Math.min(60, cfg.vizFps || 25))
@@ -172,7 +172,7 @@ PlasmoidItem {
             + '"$f" >/dev/null 2>&1 &'
     }
     function cavaStart() { cavaLaunched = true; viz.run(cavaStartCmd()) }
-    function cavaStop() { cavaLaunched = false; cavaOk = false; viz.run("pkill -f " + cavaPattern + "; true") }
+    function cavaStop() { cavaLaunched = false; viz.run("pkill -f " + cavaPattern + "; true") }
 
     P5Support.DataSource {
         id: viz
@@ -204,55 +204,6 @@ PlasmoidItem {
         repeat: true
         running: root.vizActive && root.cavaOk
         onTriggered: viz.run(root.cavaReadCmd)
-        onRunningChanged: if (!running) { root.levels = []; root.peaks = [] }
-    }
-
-    TaskManager.ActivityInfo { id: activityInfo }
-    TaskManager.TasksModel {
-        id: deskWindows
-        groupMode: TaskManager.TasksModel.GroupDisabled
-        screenGeometry: Plasmoid.containment.screenGeometry
-        filterByScreen: true
-        filterByCurrentVirtualDesktop: true
-        activity: activityInfo.currentActivity
-        filterByActivity: true
-        filterMinimized: true
-        filterHidden: true
-    }
-    Instantiator {
-        id: deskWindowList
-        active: root.vizShown && root.cfg.vizPause > 0
-        model: deskWindows
-        delegate: QtObject {
-            readonly property bool win: model.IsWindow === true
-            readonly property bool big: model.IsMaximized === true || model.IsFullScreen === true
-            readonly property rect geo: model.Geometry
-            onBigChanged: coverCheck.restart()
-            onGeoChanged: coverCheck.restart()
-        }
-        onObjectAdded: coverCheck.restart()
-        onObjectRemoved: coverCheck.restart()
-        onActiveChanged: coverCheck.restart()
-    }
-    Timer {
-        id: coverCheck
-        interval: 250
-        onTriggered: {
-            var mode = root.cfg.vizPause, covered = false
-            if (deskWindowList.active && mode > 0) {
-                var sg = Plasmoid.containment.screenGeometry
-                var p = root.mapToItem(null, 0, 0)
-                var x1 = sg.x + p.x, y1 = sg.y + p.y, x2 = x1 + root.width, y2 = y1 + root.height
-                for (var i = 0; i < deskWindowList.count && !covered; i++) {
-                    var w = deskWindowList.objectAt(i)
-                    if (!w || !w.win) continue
-                    if (mode === 1) covered = w.big
-                    else covered = w.geo.x < x2 && w.geo.x + w.geo.width > x1
-                                   && w.geo.y < y2 && w.geo.y + w.geo.height > y1
-                }
-            }
-            root.vizCovered = covered
-        }
     }
 
     // cava starts the first time music plays on the Visualizer card and stops when the card
@@ -382,7 +333,7 @@ PlasmoidItem {
     Timer {
         interval: 5000
         repeat: true
-        running: root.onDesktop && root.cfg.deskFace === 3
+        running: root.onDesktop && root.cfg.deskFace === 3 && !root.vizCovered
         onTriggered: root.refresh()
     }
 
@@ -669,6 +620,12 @@ PlasmoidItem {
                         Item {
                             id: spinner
                             anchors.fill: parent
+                            // drawn once at double size, then the spinning copy is scaled down smoothly: round,
+                            // anti-aliased edges, and the rotation only moves the finished picture
+                            layer.enabled: true
+                            layer.smooth: true
+                            layer.mipmap: true
+                            layer.textureSize: Qt.size(width * 2, height * 2)
                             Image {
                                 id: discArt
                                 anchors.fill: parent
@@ -1190,6 +1147,12 @@ PlasmoidItem {
                         anchors.centerIn: parent
                         width: Math.min(parent.width, parent.height)
                         height: width
+                        // drawn once at double size, then the spinning copy is scaled down smoothly: round,
+                        // anti-aliased edges, and the rotation only moves the finished picture
+                        layer.enabled: true
+                        layer.smooth: true
+                        layer.mipmap: true
+                        layer.textureSize: Qt.size(width * 2, height * 2)
                         Rectangle {
                             anchors.fill: parent
                             radius: width / 2
@@ -1227,7 +1190,7 @@ PlasmoidItem {
                             duration: 14000
                             loops: Animation.Infinite
                             running: true
-                            paused: !root.playing
+                            paused: !root.playing || root.vizCovered
                         }
                     }
                 }
@@ -1434,7 +1397,7 @@ PlasmoidItem {
                         }
                     }
                 }
-                // audio bars growing from the middle; flat when paused or without cava
+                // audio bars growing from the middle; still and dimmed when paused or hidden
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -1447,7 +1410,15 @@ PlasmoidItem {
                         readonly property int shape: root.cfg.vizShape     // 0 mirrored, 1 bottom, 2 top
                         readonly property real minH: Math.min(barW * 0.5, 6)
                         readonly property real barRadius: barW / 2 * Math.max(0, Math.min(100, root.cfg.vizRound)) / 100
-                        readonly property bool live: root.levels.length > 0
+                        // with no audio yet (paused, hidden or just started) the bars hold a still
+                        // shape: the last frame, or a soft wave before anything has played
+                        readonly property bool moving: root.vizActive && root.levels.length > 0
+                        function level(i) {
+                            if (root.levels.length > 0) return root.levels[i] || 0
+                            var x = (i + 0.5) / root.vizBars
+                            return 12 + 38 * Math.pow(Math.sin(Math.PI * x), 2) * (0.75 + 0.25 * Math.cos(6 * Math.PI * x))
+                        }
+                        opacity: moving ? 1 : 0.55
                         readonly property color base: root.cfg.vizColorMode === 0 ? root.cAccent : root.cfg.vizColor
                         readonly property color tip: root.cfg.vizColorMode === 2 ? root.cfg.vizColor2 : base
                         spacing: barW * gapRatio
@@ -1461,14 +1432,14 @@ PlasmoidItem {
                                 // places a bar or peak marker of height h for the chosen shape
                                 function yFor(h) { return bars.shape === 0 ? (height - h) / 2 : bars.shape === 1 ? height - h : 0 }
                                 Rectangle {
-                                    readonly property real h: Math.max(bars.minH, slot.height * Math.min(100, root.levels[slot.index] || 0) / 100)
+                                    readonly property real h: Math.max(bars.minH, slot.height * Math.min(100, bars.level(slot.index)) / 100)
                                     y: slot.yFor(h)
                                     width: parent.width
                                     height: h
                                     radius: bars.barRadius
-                                    color: bars.live ? bars.base : root.style.track
+                                    color: bars.base
                                     // vertical gradient from the base of the bar to its tip(s)
-                                    gradient: bars.live && root.cfg.vizColorMode === 2 ? grad : null
+                                    gradient: root.cfg.vizColorMode === 2 ? grad : null
                                     Gradient {
                                         id: grad
                                         GradientStop { position: 0; color: bars.shape === 2 ? bars.base : bars.tip }
@@ -1481,7 +1452,7 @@ PlasmoidItem {
                                 }
                                 // peak marker: for mirrored bars, one above and one below
                                 Repeater {
-                                    model: root.cfg.vizPeaks && bars.live ? (bars.shape === 0 ? 2 : 1) : 0
+                                    model: root.cfg.vizPeaks && root.peaks.length > 0 ? (bars.shape === 0 ? 2 : 1) : 0
                                     Rectangle {
                                         required property int index
                                         readonly property real ph: slot.height * Math.min(100, root.peaks[slot.index] || 0) / 100

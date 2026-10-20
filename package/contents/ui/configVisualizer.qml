@@ -19,7 +19,6 @@ KCM.SimpleKCM {
     property alias cfg_vizPeaks: peaks.checked
     property alias cfg_vizShowInfo: showInfo.checked
     property alias cfg_vizFps: fps.value
-    property alias cfg_vizPause: pause.currentIndex
     property alias cfg_vizSmooth: smooth.value
     property alias cfg_vizSens: sens.value
     property alias cfg_vizAutoSens: autoSens.checked
@@ -89,11 +88,6 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             opacity: 0.7
             text: "Higher is smoother but uses more CPU while music plays."
-        }
-        QQC2.ComboBox {
-            id: pause
-            Kirigami.FormData.label: "Pause when:"
-            model: ["Never", "A maximized or fullscreen window is open", "Any window covers the card"]
         }
         RowLayout {
             Kirigami.FormData.label: "Smoothing:"
