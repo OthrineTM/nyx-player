@@ -8,6 +8,7 @@ import org.kde.plasma.components as PC3
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.plasma.private.mpris as Mpris
 import org.kde.kirigami as Kirigami
+import org.kde.taskmanager as TaskManager
 
 PlasmoidItem {
     id: root
@@ -144,7 +145,10 @@ PlasmoidItem {
     property bool cavaChecked: false
     property bool cavaLaunched: false
     readonly property bool vizShown: onDesktop && cfg.deskFace === 4
-    readonly property bool vizActive: vizShown && playing
+    // windows can hide the desktop card; then the visualizer pauses (setting vizPause:
+    // 0 never, 1 a maximized or fullscreen window on this screen, 2 any window over the card)
+    property bool vizCovered: false
+    readonly property bool vizActive: vizShown && playing && !vizCovered
     readonly property int vizBars: Math.max(4, Math.min(64, cfg.visualizerBars))
     readonly property int vizFps: Math.max(10, Math.min(60, cfg.vizFps || 25))
     // everything cava itself is started with; a change restarts it
@@ -203,8 +207,60 @@ PlasmoidItem {
         onRunningChanged: if (!running) { root.levels = []; root.peaks = [] }
     }
 
-    // cava starts the first time music plays on the Visualizer card and stops when the card goes
-    onVizActiveChanged: if (vizActive && !cavaLaunched) cavaStart()
+    TaskManager.ActivityInfo { id: activityInfo }
+    TaskManager.TasksModel {
+        id: deskWindows
+        groupMode: TaskManager.TasksModel.GroupDisabled
+        screenGeometry: Plasmoid.containment.screenGeometry
+        filterByScreen: true
+        filterByCurrentVirtualDesktop: true
+        activity: activityInfo.currentActivity
+        filterByActivity: true
+        filterMinimized: true
+        filterHidden: true
+    }
+    Instantiator {
+        id: deskWindowList
+        active: root.vizShown && root.cfg.vizPause > 0
+        model: deskWindows
+        delegate: QtObject {
+            readonly property bool win: model.IsWindow === true
+            readonly property bool big: model.IsMaximized === true || model.IsFullScreen === true
+            readonly property rect geo: model.Geometry
+            onBigChanged: coverCheck.restart()
+            onGeoChanged: coverCheck.restart()
+        }
+        onObjectAdded: coverCheck.restart()
+        onObjectRemoved: coverCheck.restart()
+        onActiveChanged: coverCheck.restart()
+    }
+    Timer {
+        id: coverCheck
+        interval: 250
+        onTriggered: {
+            var mode = root.cfg.vizPause, covered = false
+            if (deskWindowList.active && mode > 0) {
+                var sg = Plasmoid.containment.screenGeometry
+                var p = root.mapToItem(null, 0, 0)
+                var x1 = sg.x + p.x, y1 = sg.y + p.y, x2 = x1 + root.width, y2 = y1 + root.height
+                for (var i = 0; i < deskWindowList.count && !covered; i++) {
+                    var w = deskWindowList.objectAt(i)
+                    if (!w || !w.win) continue
+                    if (mode === 1) covered = w.big
+                    else covered = w.geo.x < x2 && w.geo.x + w.geo.width > x1
+                                   && w.geo.y < y2 && w.geo.y + w.geo.height > y1
+                }
+            }
+            root.vizCovered = covered
+        }
+    }
+
+    // cava starts the first time music plays on the Visualizer card and stops when the card
+    // goes or gets covered by a window
+    onVizActiveChanged: {
+        if (vizActive && !cavaLaunched) cavaStart()
+        else if (!vizActive && vizCovered && cavaLaunched) cavaStop()
+    }
     onVizShownChanged: if (!vizShown && cavaLaunched) cavaStop()
     onVizConfChanged: if (cavaLaunched) cavaStart()
     Component.onDestruction: if (cavaLaunched) cavaStop()
