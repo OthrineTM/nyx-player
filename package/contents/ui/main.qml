@@ -139,12 +139,19 @@ PlasmoidItem {
     // cava runs in the background and keeps overwriting one line of bar heights in
     // $XDG_RUNTIME_DIR (a RAM disk); the Visualizer card reads that line while music plays.
     property var levels: []
+    property var peaks: []           // falling peak markers, same scale as levels (0-100)
     property bool cavaOk: false
     property bool cavaChecked: false
     property bool cavaLaunched: false
     readonly property bool vizShown: onDesktop && cfg.deskFace === 4
     readonly property bool vizActive: vizShown && playing
     readonly property int vizBars: Math.max(4, Math.min(64, cfg.visualizerBars))
+    readonly property int vizFps: [15, 25, 30, 60].indexOf(cfg.vizFps) >= 0 ? cfg.vizFps : 25
+    // everything cava itself is started with; a change restarts it
+    readonly property string vizConf: "framerate = " + vizFps + "\\nbars = " + vizBars
+        + "\\nsensitivity = " + Math.max(10, Math.min(300, cfg.vizSens))
+        + "\\nautosens = " + (cfg.vizAutoSens ? 1 : 0)
+        + "\\n[smoothing]\\nnoise_reduction = " + Math.max(0, Math.min(100, cfg.vizSmooth))
     readonly property string cavaPattern: "'^cava -p .*/nyx-player-cava[.]conf$'"
     readonly property string cavaReadCmd: 'cat "${XDG_RUNTIME_DIR:-/tmp}/nyx-player-cava" 2>/dev/null'
 
@@ -154,9 +161,9 @@ PlasmoidItem {
         return 'command -v cava >/dev/null || exit 3; '
             + 'pkill -f ' + cavaPattern + '; sleep 0.2; '
             + 'f="${XDG_RUNTIME_DIR:-/tmp}/nyx-player-cava"; '
-            + "printf '[general]\\nframerate = 25\\nbars = %s\\n[output]\\nmethod = raw\\nraw_target = /dev/stdout\\n"
+            + "printf '[general]\\n" + vizConf + "\\n[output]\\nmethod = raw\\nraw_target = /dev/stdout\\n"
             + "data_format = ascii\\nascii_max_range = 100\\nbar_delimiter = 59\\nframe_delimiter = 10\\n' "
-            + vizBars + ' > "$f.conf"; '
+            + ' > "$f.conf"; '
             + "setsid sh -c 'cava -p \"$0.conf\" | while IFS= read -r l; do printf \"%s\\n\" \"$l\" > \"$0\"; done' "
             + '"$f" >/dev/null 2>&1 &'
     }
@@ -171,7 +178,16 @@ PlasmoidItem {
             disconnectSource(source)
             if (source === root.cavaReadCmd) {
                 var v = (data["stdout"] || "").trim().split(";").filter(function (x) { return x.length > 0 })
-                if (v.length === root.vizBars) root.levels = v.map(Number)
+                if (v.length === root.vizBars) {
+                    var lv = v.map(Number)
+                    if (root.cfg.vizPeaks) {
+                        // a peak falls the full height in about 1.2 s, whatever the frame rate
+                        var drop = 100 / (root.vizFps * 1.2)
+                        var old = root.peaks.length === lv.length ? root.peaks : []
+                        root.peaks = lv.map(function (x, i) { return Math.max(x, (old[i] || 0) - drop) })
+                    }
+                    root.levels = lv
+                }
             } else if (source.indexOf("command -v cava") === 0) {
                 root.cavaOk = data["exit code"] === 0
                 root.cavaChecked = true
@@ -180,17 +196,17 @@ PlasmoidItem {
     }
 
     Timer {
-        interval: 40
+        interval: Math.round(1000 / root.vizFps)
         repeat: true
         running: root.vizActive && root.cavaOk
         onTriggered: viz.run(root.cavaReadCmd)
-        onRunningChanged: if (!running) root.levels = []
+        onRunningChanged: if (!running) { root.levels = []; root.peaks = [] }
     }
 
     // cava starts the first time music plays on the Visualizer card and stops when the card goes
     onVizActiveChanged: if (vizActive && !cavaLaunched) cavaStart()
     onVizShownChanged: if (!vizShown && cavaLaunched) cavaStop()
-    onVizBarsChanged: if (cavaLaunched) cavaStart()
+    onVizConfChanged: if (cavaLaunched) cavaStart()
     Component.onDestruction: if (cavaLaunched) cavaStop()
 
     // ---- Easy Effects -------------------------------------------------
@@ -1320,6 +1336,7 @@ PlasmoidItem {
                 anchors.margins: card.pad
                 spacing: Kirigami.Units.largeSpacing
                 RowLayout {
+                    visible: root.cfg.vizShowInfo
                     Layout.fillWidth: true
                     spacing: Kirigami.Units.largeSpacing
                     Art {
@@ -1357,23 +1374,58 @@ PlasmoidItem {
                         id: bars
                         anchors.fill: parent
                         visible: !(root.cavaChecked && !root.cavaOk)
-                        readonly property real barW: width / (1.35 * root.vizBars - 0.35)
-                        spacing: barW * 0.35
+                        readonly property real gapRatio: Math.max(0, Math.min(100, root.cfg.vizGap)) / 100
+                        readonly property real barW: width / ((1 + gapRatio) * root.vizBars - gapRatio)
+                        readonly property int shape: root.cfg.vizShape     // 0 mirrored, 1 bottom, 2 top
+                        readonly property real minH: Math.min(barW * 0.5, 6)
+                        readonly property real barRadius: barW / 2 * Math.max(0, Math.min(100, root.cfg.vizRound)) / 100
+                        readonly property bool live: root.levels.length > 0
+                        readonly property color base: root.cfg.vizColorMode === 0 ? root.cAccent : root.cfg.vizColor
+                        readonly property color tip: root.cfg.vizColorMode === 2 ? root.cfg.vizColor2 : base
+                        spacing: barW * gapRatio
                         Repeater {
                             model: root.vizBars
                             Item {
+                                id: slot
                                 required property int index
                                 width: bars.barW
                                 height: bars.height
+                                // places a bar or peak marker of height h for the chosen shape
+                                function yFor(h) { return bars.shape === 0 ? (height - h) / 2 : bars.shape === 1 ? height - h : 0 }
                                 Rectangle {
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    readonly property real h: Math.max(bars.minH, slot.height * Math.min(100, root.levels[slot.index] || 0) / 100)
+                                    y: slot.yFor(h)
                                     width: parent.width
-                                    height: Math.max(Math.min(bars.barW * 0.5, 6), parent.height * Math.min(100, root.levels[index] || 0) / 100)
-                                    radius: Math.min(width / 2, 3)
-                                    color: root.levels.length > 0 ? root.cAccent : root.style.track
+                                    height: h
+                                    radius: bars.barRadius
+                                    color: bars.live ? bars.base : root.style.track
+                                    // vertical gradient from the base of the bar to its tip(s)
+                                    gradient: bars.live && root.cfg.vizColorMode === 2 ? grad : null
+                                    Gradient {
+                                        id: grad
+                                        GradientStop { position: 0; color: bars.shape === 2 ? bars.base : bars.tip }
+                                        GradientStop { position: 0.5; color: bars.shape === 0 ? bars.base : Qt.tint(bars.base, Qt.alpha(bars.tip, 0.5)) }
+                                        GradientStop { position: 1; color: bars.shape === 1 ? bars.base : bars.tip }
+                                    }
                                     // no height animation: it would redraw the desktop at the screen's
                                     // refresh rate (300 Hz) for as long as music plays; cava already
                                     // smooths the bars, so they only repaint when new levels arrive
+                                }
+                                // peak marker: for mirrored bars, one above and one below
+                                Repeater {
+                                    model: root.cfg.vizPeaks && bars.live ? (bars.shape === 0 ? 2 : 1) : 0
+                                    Rectangle {
+                                        required property int index
+                                        readonly property real ph: slot.height * Math.min(100, root.peaks[slot.index] || 0) / 100
+                                        readonly property real t: Math.max(2, Math.min(bars.barW * 0.35, 4))
+                                        width: slot.width
+                                        height: t
+                                        radius: Math.min(bars.barRadius, t / 2)
+                                        color: bars.tip
+                                        visible: ph > bars.minH + t
+                                        y: bars.shape === 0 ? (index === 0 ? (slot.height - ph) / 2 - t - 1 : (slot.height + ph) / 2 + 1)
+                                          : bars.shape === 1 ? slot.height - ph - t - 1 : ph + 1
+                                    }
                                 }
                             }
                         }

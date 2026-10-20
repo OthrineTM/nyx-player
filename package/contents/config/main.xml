@@ -19,6 +19,22 @@
     <entry name="deskFace" type="Int"><default>0</default></entry>
     <!-- audio bars on the Visualizer card; needs cava -->
     <entry name="visualizerBars" type="Int"><default>24</default></entry>
+    <!-- visualizer look: 0 mirrored from the middle, 1 from the bottom, 2 from the top -->
+    <entry name="vizShape" type="Int"><default>0</default></entry>
+    <!-- gap between bars and corner roundness, in % of the bar width -->
+    <entry name="vizGap" type="Int"><default>35</default></entry>
+    <entry name="vizRound" type="Int"><default>50</default></entry>
+    <!-- bar color: 0 accent, 1 custom color, 2 gradient (vizColor at the base, vizColor2 at the tip) -->
+    <entry name="vizColorMode" type="Int"><default>0</default></entry>
+    <entry name="vizColor" type="String"><default>#9b59f6</default></entry>
+    <entry name="vizColor2" type="String"><default>#f06bd8</default></entry>
+    <entry name="vizPeaks" type="Bool"><default>false</default></entry>
+    <entry name="vizShowInfo" type="Bool"><default>true</default></entry>
+    <!-- cava: frames per second, smoothing (noise_reduction), sensitivity in %, automatic sensitivity -->
+    <entry name="vizFps" type="Int"><default>25</default></entry>
+    <entry name="vizSmooth" type="Int"><default>77</default></entry>
+    <entry name="vizSens" type="Int"><default>100</default></entry>
+    <entry name="vizAutoSens" type="Bool"><default>true</default></entry>
     <!-- Easy Effects presets (group names, without -min/-max) left out of the popup and the Effects card -->
     <entry name="hiddenPresets" type="StringList"><default></default></entry>
     <entry name="accentFromArt" type="Bool"><default>true</default></entry>

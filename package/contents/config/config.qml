@@ -8,6 +8,11 @@ ConfigModel {
         source: "configGeneral.qml"
     }
     ConfigCategory {
+        name: "Visualizer"
+        icon: "view-media-visualization"
+        source: "configVisualizer.qml"
+    }
+    ConfigCategory {
         name: "Presets"
         icon: "view-media-equalizer"
         source: "configPresets.qml"
